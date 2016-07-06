@@ -1,4 +1,7 @@
-document.addEventListener('mousedown', function(e) {
+document.addEventListener('mousedown', handlePointerPress, true);
+document.addEventListener('touchstart', handlePointerPress, true);
+
+function handlePointerPress(e) {
     var a = e.target;
     while (a && !a.href) {
         a = a.parentElement;
@@ -27,4 +30,4 @@ document.addEventListener('mousedown', function(e) {
             a.href = decodeURIComponent(url[1]);
         }
     }
-}, true);
+}
