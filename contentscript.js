@@ -15,4 +15,13 @@ document.addEventListener('mousedown', function(e) {
         // not needed. It's not a problem to expose the Google origin to link
         // targets, since that is not private-sensitive information.
     }
+    if (a.hostname === location.hostname &&
+        /^\/(local_)?url$/.test(a.pathname)) {
+        // Google Maps / Dito (/local_url?q=<url>)
+        // Mobile (/url?q=<url>)
+        var url = /[?&](?:q|url)=(http[^&]+)/.exec(a.search);
+        if (url) {
+            a.href = decodeURIComponent(url[1]);
+        }
+    }
 }, true);
