@@ -28,5 +28,5 @@ function writeDomainData(data) {
     manifest.content_scripts[0].matches = patterns;
 
     console.log('Overwriting ' + manifestPath);
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 4));
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 4) + '\n');
 }
