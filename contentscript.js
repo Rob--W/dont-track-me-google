@@ -3,7 +3,10 @@ document.addEventListener('mousedown', function(e) {
     while (a && !a.href) {
         a = a.parentElement;
     }
-    var inlineMousedown = a && a.getAttribute('onmousedown');
+    if (!a) {
+        return;
+    }
+    var inlineMousedown = a.getAttribute('onmousedown');
     // return rwt(....); // E.g Google search results.
     // return google.rwt(...); // E.g. sponsored search results
     if (inlineMousedown && /\brwt\(/.test(inlineMousedown)) {
