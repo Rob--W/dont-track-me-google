@@ -36,7 +36,7 @@ function getRealLinkFromGoogleUrl(a) {
         /^\/(local_)?url$/.test(a.pathname)) {
         // Google Maps / Dito (/local_url?q=<url>)
         // Mobile (/url?q=<url>)
-        var url = /[?&](?:q|url)=(https?[%:][^&]+)/.exec(a.search);
+        var url = /[?&](?:q|url)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
         }
