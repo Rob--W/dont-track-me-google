@@ -1,10 +1,11 @@
 {
     "name": "Don't track me Google",
     "description": "Removes the annoying link-conversion at Google Search/maps/...",
-    "version": "4.4",
+    "version": "4.5",
     "manifest_version": 2,
     "content_scripts": [
         {
+            "all_frames": true,
             "run_at": "document_start",
             "js": [
                 "contentscript.js"
