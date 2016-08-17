@@ -40,6 +40,11 @@ function getRealLinkFromGoogleUrl(a) {
         if (url) {
             return decodeURIComponent(url[1]);
         }
+        // Help pages, e.g. safe browsing (/url?...&q=%2Fsupport%2Fanswer...)
+        url = /[?&](?:q|url)=((?:%2[Ff]|\/)[^&]+)/.exec(a.search);
+        if (url) {
+            return a.origin + decodeURIComponent(url[1]);
+        }
     }
 }
 
