@@ -19,7 +19,7 @@ This speeds up loading search results and allows you to right-click or tap to co
 - november 2012 - Published as a Chrome extension.
 - april 2013 - Updated Chrome extension to disable `<a ping>`. This version worked fine for three years without any modifications.
 - july 2016 - Published Firefox addon. Rewrote the program from scratch to recognize more URLs and to use modern techniques for a better performance.
-  The goal is to prevent ugly URLs from appearing.
-  Previous versions also included referrer hiding functionality, but that is not needed any more because all modern browsers support [referrer policies](https://blog.mozilla.org/security/2015/01/21/meta-referrer/).
+- september 2016 - Restored referrer hiding functionality with minimal impact using
+  [referrer policies](https://blog.mozilla.org/security/2015/01/21/meta-referrer/).
 
 Brought to you by Rob Wu (https://robwu.nl).

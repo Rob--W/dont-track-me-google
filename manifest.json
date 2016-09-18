@@ -212,6 +212,13 @@
         "48": "icon48.png",
         "96": "icon96.png"
     },
+    "options_ui": {
+        "page": "options.html",
+        "chrome_style": true
+    },
+    "permissions": [
+        "storage"
+    ],
     "applications": {
         "gecko": {
             "id": "dont-track-me-google@robwu.nl"

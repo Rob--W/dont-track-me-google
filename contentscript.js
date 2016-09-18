@@ -2,6 +2,24 @@ document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 setupAggresiveUglyLinkPreventer();
 
+var referrerPolicy = 'no-referrer';
+if (chrome.storage) {
+    (chrome.storage.sync || chrome.storage.local).get({
+        referrerPolicy: referrerPolicy,
+    }, function(items) {
+        if (items) {
+            referrerPolicy = items.referrerPolicy;
+        }
+    });
+    chrome.storage.onChanged.addListener(function(changes) {
+        if (changes.referrerPolicy) {
+            referrerPolicy = changes.referrerPolicy.newValue;
+        }
+    });
+}
+
+var metaElem;
+
 function handlePointerPress(e) {
     var a = e.target;
     while (a && !a.href) {
@@ -17,14 +35,21 @@ function handlePointerPress(e) {
         a.removeAttribute('onmousedown');
         // Just in case:
         a.removeAttribute('ping');
-        // A previous version (3.6) also tried to mask the referrer header, but
-        // thanks to Google's <meta content="origin" name="referrer">, that is
-        // not needed. It's not a problem to expose the Google origin to link
-        // targets, since that is not private-sensitive information.
     }
     var realLink = getRealLinkFromGoogleUrl(a);
     if (realLink) {
         a.href = realLink;
+    }
+    if (referrerPolicy) {
+        a.referrerPolicy = referrerPolicy;
+        if (!metaElem) {
+            metaElem = document.createElement('meta');
+            metaElem.name = 'referrer';
+        }
+        metaElem.content = referrerPolicy;
+        document.head.appendChild(metaElem);
+    } else if (metaElem) {
+        metaElem.remove();
     }
 }
 
