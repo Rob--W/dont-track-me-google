@@ -4,3 +4,6 @@ build:
 	    manifest.json \
 	    contentscript.js \
 	    icon*.png
+
+userscript:
+	node make-userscript.js

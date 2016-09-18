@@ -3,7 +3,7 @@ document.addEventListener('touchstart', handlePointerPress, true);
 setupAggresiveUglyLinkPreventer();
 
 var referrerPolicy = 'no-referrer';
-if (chrome.storage) {
+if (typeof chrome == 'object' && chrome.storage) {
     (chrome.storage.sync || chrome.storage.local).get({
         referrerPolicy: referrerPolicy,
     }, function(items) {
