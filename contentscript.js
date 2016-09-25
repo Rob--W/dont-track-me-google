@@ -1,5 +1,6 @@
 document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
+document.addEventListener('click', handleClick, true);
 document.addEventListener('DOMContentLoaded', useReferrerPolicy, true);
 setupAggresiveUglyLinkPreventer();
 
@@ -57,6 +58,30 @@ function handlePointerPress(e) {
         a.href = realLink;
     }
     useReferrerPolicy();
+}
+
+// This is specifically designed for catching clicks in Gmail.
+// Gmail binds a click handler to a <div> and cancels the event after opening
+// a window with an ugly URL. It uses a blank window + meta refresh in Firefox,
+// which is too crazy to patch. So we just make sure that the browser's default
+// click handler is activated (=open link in new tab).
+// The entry point for this crazy stuff is shown in my comment at
+// https://github.com/Rob--W/dont-track-me-google/issues/2
+function handleClick(e) {
+    if (e.button !== 0) {
+        return;
+    }
+    var a = e.target;
+    while (a && !a.href) {
+        a = a.parentElement;
+    }
+    if (!a) {
+        return;
+    }
+    if (a.target === '_blank') {
+        e.stopPropagation();
+        useReferrerPolicy();
+    }
 }
 
 /**
