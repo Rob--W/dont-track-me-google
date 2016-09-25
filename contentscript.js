@@ -1,5 +1,6 @@
 document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
+document.addEventListener('DOMContentLoaded', useReferrerPolicy, true);
 setupAggresiveUglyLinkPreventer();
 
 var referrerPolicy = 'no-referrer';
@@ -9,16 +10,31 @@ if (typeof chrome == 'object' && chrome.storage) {
     }, function(items) {
         if (items) {
             referrerPolicy = items.referrerPolicy;
+            useReferrerPolicy();
         }
     });
     chrome.storage.onChanged.addListener(function(changes) {
         if (changes.referrerPolicy) {
             referrerPolicy = changes.referrerPolicy.newValue;
+            useReferrerPolicy();
         }
     });
 }
 
 var metaElem;
+
+function useReferrerPolicy() {
+    if (referrerPolicy) {
+        if (!metaElem) {
+            metaElem = document.createElement('meta');
+            metaElem.name = 'referrer';
+        }
+        metaElem.content = referrerPolicy;
+        (document.head || document.documentElement).appendChild(metaElem);
+    } else if (metaElem) {
+        metaElem.remove();
+    }
+}
 
 function handlePointerPress(e) {
     var a = e.target;
@@ -40,17 +56,7 @@ function handlePointerPress(e) {
     if (realLink) {
         a.href = realLink;
     }
-    if (referrerPolicy) {
-        a.referrerPolicy = referrerPolicy;
-        if (!metaElem) {
-            metaElem = document.createElement('meta');
-            metaElem.name = 'referrer';
-        }
-        metaElem.content = referrerPolicy;
-        document.head.appendChild(metaElem);
-    } else if (metaElem) {
-        metaElem.remove();
-    }
+    useReferrerPolicy();
 }
 
 /**
