@@ -78,6 +78,20 @@ function handleClick(e) {
     if (!a) {
         return;
     }
+    if (a.origin === location.origin &&
+        location.href.split('#', 1)[0] === a.href.split('#', 1)[0]) {
+        // In-page navigation.
+        return;
+    }
+    if (a.protocol !== 'http:' &&
+        a.protocol !== 'https:' &&
+        a.protocol !== 'ftp:') {
+        // Be conservative and don't block too much. E.g. Gmail has special
+        // handling for mailto:-URLs, and using stopPropagation now would
+        // cause mailto:-links to be opened by the platform's default mailto
+        // handler instead of Gmail's handler (=open in new window).
+        return;
+    }
     if (a.target === '_blank') {
         e.stopPropagation();
         useReferrerPolicy();
