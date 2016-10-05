@@ -78,9 +78,10 @@ function handleClick(e) {
     if (!a) {
         return;
     }
-    if (a.origin === location.origin &&
-        location.href.split('#', 1)[0] === a.href.split('#', 1)[0]) {
-        // In-page navigation.
+    if (a.origin === location.origin && a.pathname === location.pathname) {
+        // Same URL except for query string and/or reference fragment.
+        // E.g. an in-page navigation at Google Docs (#...)
+        // or an attachment at Gmail (?ui=2&...)
         return;
     }
     if (a.protocol !== 'http:' &&
