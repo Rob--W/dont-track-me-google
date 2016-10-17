@@ -4,19 +4,27 @@ document.addEventListener('click', handleClick, true);
 document.addEventListener('DOMContentLoaded', useReferrerPolicy, true);
 setupAggresiveUglyLinkPreventer();
 
-var referrerPolicy = 'no-referrer';
+var forceNoReferrer = true;
 if (typeof chrome == 'object' && chrome.storage) {
     (chrome.storage.sync || chrome.storage.local).get({
-        referrerPolicy: referrerPolicy,
+        forceNoReferrer: true,
+        // From version 4.7 until 4.11, the preference was the literal value of
+        // the referrer policy.
+        referrerPolicy: 'no-referrer',
     }, function(items) {
         if (items) {
-            referrerPolicy = items.referrerPolicy;
+            // Migration code (to be removed in the future).
+            if (items.referrerPolicy === '') {
+                // User explicitly allowed referrers to be sent, respect that.
+                items.forceNoReferrer = false;
+            }
+            forceNoReferrer = items.forceNoReferrer;
             useReferrerPolicy();
         }
     });
     chrome.storage.onChanged.addListener(function(changes) {
-        if (changes.referrerPolicy) {
-            referrerPolicy = changes.referrerPolicy.newValue;
+        if (changes.forceNoReferrer) {
+            forceNoReferrer = changes.forceNoReferrer.newValue;
             useReferrerPolicy();
         }
     });
@@ -25,12 +33,12 @@ if (typeof chrome == 'object' && chrome.storage) {
 var metaElem;
 
 function useReferrerPolicy() {
-    if (referrerPolicy) {
+    if (forceNoReferrer) {
         if (!metaElem) {
             metaElem = document.createElement('meta');
             metaElem.name = 'referrer';
         }
-        metaElem.content = referrerPolicy;
+        metaElem.content = 'origin';
         (document.head || document.documentElement).appendChild(metaElem);
     } else if (metaElem) {
         metaElem.remove();
