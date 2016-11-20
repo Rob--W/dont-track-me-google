@@ -1,7 +1,6 @@
 document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
-document.addEventListener('DOMContentLoaded', useReferrerPolicy, true);
 setupAggresiveUglyLinkPreventer();
 
 var forceNoReferrer = true;
@@ -19,30 +18,17 @@ if (typeof chrome == 'object' && chrome.storage) {
                 items.forceNoReferrer = false;
             }
             forceNoReferrer = items.forceNoReferrer;
-            useReferrerPolicy();
         }
     });
     chrome.storage.onChanged.addListener(function(changes) {
         if (changes.forceNoReferrer) {
             forceNoReferrer = changes.forceNoReferrer.newValue;
-            useReferrerPolicy();
         }
     });
 }
 
-var metaElem;
-
-function useReferrerPolicy() {
-    if (forceNoReferrer) {
-        if (!metaElem) {
-            metaElem = document.createElement('meta');
-            metaElem.name = 'referrer';
-        }
-        metaElem.content = 'origin';
-        (document.head || document.documentElement).appendChild(metaElem);
-    } else if (metaElem) {
-        metaElem.remove();
-    }
+function getReferrerPolicy() {
+    return forceNoReferrer ? 'origin' : '';
 }
 
 function handlePointerPress(e) {
@@ -65,7 +51,7 @@ function handlePointerPress(e) {
     if (realLink) {
         a.href = realLink;
     }
-    useReferrerPolicy();
+    a.referrerPolicy = getReferrerPolicy();
 }
 
 // This is specifically designed for catching clicks in Gmail.
@@ -111,7 +97,7 @@ function handleClick(e) {
     }
     if (a.target === '_blank') {
         e.stopPropagation();
-        useReferrerPolicy();
+        a.referrerPolicy = getReferrerPolicy();
     }
 }
 
@@ -154,6 +140,7 @@ function setupAggresiveUglyLinkPreventer() {
         var hrefProp = Object.getOwnPropertyDescriptor(proto, 'href');
         var hrefGet = Function.prototype.call.bind(hrefProp.get);
         var hrefSet = Function.prototype.call.bind(hrefProp.set);
+
         Object.defineProperty(proto, 'href', {
             configurable: true,
             enumerable: true,
@@ -171,6 +158,7 @@ function setupAggresiveUglyLinkPreventer() {
                     // Not expected to happen, but don't break the setter if for
                     // some reason the (hostile) page broke the link APIs.
                 }
+                updateReferrerPolicy(this);
             },
         });
         var setAttribute = Function.prototype.call.bind(proto.setAttribute);
@@ -183,7 +171,40 @@ function setupAggresiveUglyLinkPreventer() {
                 setAttribute(this, name, value);
             }
         };
+
+        var aDispatchEvent = Function.prototype.apply.bind(proto.dispatchEvent);
+        proto.dispatchEvent = function() {
+            updateReferrerPolicy(this);
+            return aDispatchEvent(this, arguments);
+        };
+
+        var aClick = Function.prototype.apply.bind(proto.click);
+        proto.click = function() {
+            updateReferrerPolicy(this);
+            return aClick(this, arguments);
+        };
+
+        var CustomEvent = window.CustomEvent;
+        var currentScript = document.currentScript;
+        var dispatchEvent = currentScript.dispatchEvent.bind(currentScript);
+        var getScriptAttribute = currentScript.getAttribute.bind(currentScript);
+
+        function updateReferrerPolicy(a) {
+            try {
+                dispatchEvent(new CustomEvent('dtmg-get-referrer-policy'));
+                var referrerPolicy = getScriptAttribute('referrerPolicy');
+                if (typeof referrerPolicy === 'string' && referrerPolicy) {
+                    setAttribute(a, 'referrerPolicy', referrerPolicy);
+                }
+            } catch (e) {
+                // Not expected to happen, but don't break callers if it happens
+                // anyway.
+            }
+        }
     } + ')(' + getRealLinkFromGoogleUrl + ');';
+    s.addEventListener('dtmg-get-referrer-policy', function(event) {
+        s.setAttribute('referrerPolicy', getReferrerPolicy());
+    });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
 }
