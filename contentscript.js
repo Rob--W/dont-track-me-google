@@ -42,7 +42,8 @@ function handlePointerPress(e) {
     var inlineMousedown = a.getAttribute('onmousedown');
     // return rwt(....); // E.g Google search results.
     // return google.rwt(...); // E.g. sponsored search results
-    if (inlineMousedown && /\brwt\(/.test(inlineMousedown)) {
+    // return google.arwt(this); // E.g. sponsored search results (dec 2016).
+    if (inlineMousedown && /\ba?rwt\(/.test(inlineMousedown)) {
         a.removeAttribute('onmousedown');
         // Just in case:
         a.removeAttribute('ping');
