@@ -47,6 +47,10 @@ function handlePointerPress(e) {
         a.removeAttribute('onmousedown');
         // Just in case:
         a.removeAttribute('ping');
+        // In Chrome, removing onmousedown during event dispatch does not
+        // prevent the inline listener from running... So we have to cancel
+        // event propagation just in case.
+        e.stopImmediatePropagation();
     }
     var realLink = getRealLinkFromGoogleUrl(a);
     if (realLink) {
