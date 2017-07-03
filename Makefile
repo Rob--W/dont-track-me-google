@@ -8,4 +8,4 @@ build:
 	    icon*.png
 
 userscript:
-	node make-userscript.js
+	node tools/make-userscript.js

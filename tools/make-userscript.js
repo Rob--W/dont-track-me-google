@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 // Note: This is written in a semi-generic way, but only supports 1 script.
-const manifestPath = __dirname + '/manifest.json';
-const outPath = __dirname + '/dont-track-me-google.user.js';
+const ROOTDIR = __dirname + '/../';
+const manifestPath = ROOTDIR + 'manifest.json';
+const outPath = ROOTDIR + 'dont-track-me-google.user.js';
 
 const fs = require('fs');
 const manifest = JSON.parse(fs.readFileSync(manifestPath));

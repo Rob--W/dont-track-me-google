@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-var manifestPath = __dirname + '/manifest.json';
+var ROOTDIR = __dirname + '/../';
+var manifestPath = ROOTDIR + 'manifest.json';
 
 var fs = require('fs');
 var manifest = JSON.parse(fs.readFileSync(manifestPath));
