@@ -45,6 +45,7 @@ function handlePointerPress(e) {
     // return google.arwt(this); // E.g. sponsored search results (dec 2016).
     if (inlineMousedown && /\ba?rwt\(/.test(inlineMousedown)) {
         a.removeAttribute('onmousedown');
+        a.removeAttribute('oncontextmenu');
         // Just in case:
         a.removeAttribute('ping');
         // In Chrome, removing onmousedown during event dispatch does not
