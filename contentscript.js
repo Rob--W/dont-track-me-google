@@ -206,10 +206,44 @@ function setupAggresiveUglyLinkPreventer() {
                 // anyway.
             }
         }
+        currentScript.dataset.jsEnabled = 1;
     } + ')(' + getRealLinkFromGoogleUrl + ');';
     s.addEventListener('dtmg-get-referrer-policy', function(event) {
         s.setAttribute('referrerPolicy', getReferrerPolicy());
     });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
+    if (!s.dataset.jsEnabled) {
+        cleanLinksWhenJsIsDisabled();
+    }
+}
+
+function cleanLinksWhenJsIsDisabled() {
+    // When JavaScript is disabled, Google sets the "href" attribute's value to
+    // an ugly URL. Although the link is rewritten on click, we still need to
+    // rewrite the link even earlier because otherwise the ugly URL is shown in
+    // the tooltip upon hover.
+
+    // When JS is disabled, the links won't change after the document finishes
+    // loading. Until the DOM has finished loading, use the mouseover event to
+    // beautify links (the DOMContentLoaded may be delayed on slow networks).
+    document.addEventListener('mouseover', handleMouseOver);
+    document.addEventListener('DOMContentLoaded', function() {
+        document.removeEventListener('mouseover', handleMouseOver);
+        var as = document.querySelectorAll('a[href]');
+        for (var i = 0; i < as.length; ++i) {
+            var href = getRealLinkFromGoogleUrl(as[i]);
+            if (href) {
+                as[i].href = href;
+            }
+        }
+    }, {once: true});
+
+    function handleMouseOver(e) {
+        var a = e.target;
+        var href = a.href && getRealLinkFromGoogleUrl(a);
+        if (href) {
+            a.href = href;
+        }
+    }
 }
