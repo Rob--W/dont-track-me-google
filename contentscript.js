@@ -75,6 +75,7 @@ function handleClick(e) {
         a = a.parentElement;
     }
     if (!a) {
+        handleClickNonStandardLink(e);
         return;
     }
     if (a.origin === location.origin && (
@@ -103,6 +104,35 @@ function handleClick(e) {
     if (a.target === '_blank') {
         e.stopPropagation();
         a.referrerPolicy = getReferrerPolicy();
+    }
+}
+
+// Google Calendar sometimes uses `<div role="link" href=...>` instead of `<a>`.
+// Their custom JavaScript code detects clicks on such elements and then call
+// `window.open` with its "href" attribute as destination.
+function handleClickNonStandardLink(e) {
+    var a = e.target.closest('[role="link"][href]');
+    var href = a && a.getAttribute('href');
+    if (!href) {
+        return;
+    }
+    var referrerPolicy = getReferrerPolicy();
+    if (referrerPolicy) {
+        // Temporarily override the referrer policy.
+        var meta = document.createElement('meta');
+        meta.name = 'referrer';
+        meta.content = referrerPolicy;
+        document.head.appendChild(meta);
+
+        // Give the 'click' handler a chance to process the event
+        // (and call `window.open`) before removing the element.
+        setTimeout(function() {
+            meta.remove();
+        }, 50);
+    }
+    var realLink = getRealLinkFromGoogleUrl(new URL(href));
+    if (realLink) {
+        a.setAttribute('href', realLink);
     }
 }
 
