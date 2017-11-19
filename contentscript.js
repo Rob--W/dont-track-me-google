@@ -70,6 +70,13 @@ function handleClick(e) {
     if (e.button !== 0) {
         return;
     }
+    if (!location.hostname.startsWith('mail.')) {
+        // This hack was designed for Gmail, but broke other Google sites:
+        // - https://github.com/Rob--W/dont-track-me-google/issues/6
+        // - https://github.com/Rob--W/dont-track-me-google/issues/19
+        // So let's disable it for every domain except Gmail.
+        return;
+    }
     var a = e.target;
     while (a && !a.href) {
         a = a.parentElement;
@@ -78,18 +85,12 @@ function handleClick(e) {
         handleClickNonStandardLink(e);
         return;
     }
-    if (a.origin === location.origin && (
+    // TODO: Consider using a.baseURI instead of location in case Gmail ever
+    // starts using <base href>?
+    if (a.origin === location.origin && a.pathname === location.pathname) {
         // Same URL except for query string and/or reference fragment.
         // E.g. an in-page navigation at Google Docs (#...)
         // or an attachment at Gmail (?ui=2&...)
-        a.pathname === location.pathname ||
-        // When the "Open each selected result in a new browser window" option
-        // is selected, then target="_blank" is added, even though the link
-        // should be opened in the same page. So do not block the propagation
-        // of clicks. https://github.com/Rob--W/dont-track-me-google/issues/6
-        a.pathname === '/imgres' && /[?&]imgurl=/.test(a.search) ||
-        a.pathname === '/search' && /[?&]q=/.test(a.search)
-    )) {
         return;
     }
     if (a.protocol !== 'http:' &&
