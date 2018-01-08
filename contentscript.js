@@ -2,6 +2,7 @@ document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
 setupAggresiveUglyLinkPreventer();
+blockTrackingBeacons();
 
 var forceNoReferrer = true;
 if (typeof chrome == 'object' && chrome.storage) {
@@ -247,6 +248,42 @@ function setupAggresiveUglyLinkPreventer() {
     if (!s.dataset.jsEnabled) {
         cleanLinksWhenJsIsDisabled();
     }
+}
+
+// Block sendBeacon requests with destination /gen_204, because Google
+// asynchronously sends beacon requests in response to mouse events on links:
+// https://github.com/Rob--W/dont-track-me-google/issues/20
+//
+// This implementation also blocks other forms of tracking via gen_204 as a side
+// effect. That is not fully intentional, but given the lack of obvious ways to
+// discern such link-tracking events from others, I will block all of them.
+function blockTrackingBeacons() {
+    var s = document.createElement('script');
+    s.textContent = '(' + function() {
+        var navProto = window.Navigator.prototype;
+        var navProtoSendBeacon = navProto.sendBeacon;
+        if (!navProtoSendBeacon) {
+            return;
+        }
+        var sendBeacon = Function.prototype.apply.bind(navProtoSendBeacon);
+
+        // Blocks the following:
+        //   gen_204
+        //   /gen_204
+        //   https://www.google.com/gen_204
+        var isTrackingUrl = RegExp.prototype.test.bind(
+            /^(?:(?:https?:\/\/[^\/]+)?\/)?gen_204(?:[?#]|$)/);
+
+        navProto.sendBeacon = function(url, data) {
+            if (isTrackingUrl(url)) {
+                // Lie that the data has been transmitted to avoid fallbacks.
+                return true;
+            }
+            return sendBeacon(this, arguments);
+        };
+    } + ')();';
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
 }
 
 function cleanLinksWhenJsIsDisabled() {
