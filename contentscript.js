@@ -79,6 +79,12 @@ function handleClick(e) {
         handleClickNonStandardLink(e);
         return;
     }
+    if (a.dataset && a.dataset.url) {
+        var realLink = getSanitizedIntentUrl(a.dataset.url);
+        if (realLink) {
+            a.dataset.url = realLink;
+        }
+    }
     if (!location.hostname.startsWith('mail.')) {
         // This hack was designed for Gmail, but broke other Google sites:
         // - https://github.com/Rob--W/dont-track-me-google/issues/6
@@ -132,18 +138,23 @@ function handleClickNonStandardLink(e) {
             meta.remove();
         }, 50);
     }
-    var realLink = getRealLinkFromGoogleUrl(new URL(href));
+    var realLink = getRealLinkFromGoogleUrl(newURL(href));
     if (realLink) {
         a.setAttribute('href', realLink);
     }
 }
 
 /**
+ * @param {URL|HTMLHyperlinkElementUtils} a
  * @returns {String} the real URL if the given link is a Google redirect URL.
  */
 function getRealLinkFromGoogleUrl(a) {
+    if (a.protocol !== 'https:' && a.protocol !== 'http:') {
+        return;
+    }
     if ((a.hostname === location.hostname || a.hostname === 'www.google.com') &&
-        /^\/(local_)?url$/.test(a.pathname)) {
+        (a.pathname === '/url' || a.pathname === '/local_url' ||
+         a.pathname === '/searchurl/rr.html')) {
         // Google Maps / Dito (/local_url?q=<url>)
         // Mobile (/url?q=<url>)
         var url = /[?&](?:q|url)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
@@ -155,7 +166,42 @@ function getRealLinkFromGoogleUrl(a) {
         if (url) {
             return a.origin + decodeURIComponent(url[1]);
         }
+        // Redirect pages for Android intents (/searchurl/rr.html#...&url=...)
+        // rr.html only supports http(s). So restrict to http(s) only.
+        url = /[#&]url=(https?[:%][^&]+)/.exec(a.hash);
+        if (url) {
+            return decodeURIComponent(url[1]);
+        }
     }
+}
+
+/**
+ * @param {string} intentUrl
+ * @returns {string|undefined} The sanitized intent:-URL if it was an intent URL
+ *   with embedded tracking link.
+ */
+function getSanitizedIntentUrl(intentUrl) {
+    if (!intentUrl.startsWith('intent:')) {
+        return;
+    }
+    // https://developer.chrome.com/multidevice/android/intents#syntax
+    var BROWSER_FALLBACK_URL = ';S.browser_fallback_url=';
+    var indexStart = intentUrl.indexOf(BROWSER_FALLBACK_URL);
+    if (indexStart === -1) {
+        return;
+    }
+    indexStart += BROWSER_FALLBACK_URL.length;
+    var indexEnd = intentUrl.indexOf(';', indexStart);
+    indexEnd = indexEnd === -1 ? intentUrl.length : indexEnd;
+
+    var url = decodeURIComponent(intentUrl.substring(indexStart, indexEnd));
+    var realUrl = getRealLinkFromGoogleUrl(newURL(url));
+    if (!realUrl) {
+        return;
+    }
+    return intentUrl.substring(0, indexStart) +
+        encodeURIComponent(realUrl) +
+        intentUrl.substring(indexEnd);
 }
 
 /**
@@ -313,5 +359,15 @@ function cleanLinksWhenJsIsDisabled() {
         if (href) {
             a.href = href;
         }
+    }
+}
+
+function newURL(href) {
+    try {
+        return new URL(href);
+    } catch (e) {
+        var a = document.createElement('a');
+        a.href = href;
+        return a;
     }
 }
