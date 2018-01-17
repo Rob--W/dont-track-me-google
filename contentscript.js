@@ -71,19 +71,19 @@ function handleClick(e) {
     if (e.button !== 0) {
         return;
     }
-    if (!location.hostname.startsWith('mail.')) {
-        // This hack was designed for Gmail, but broke other Google sites:
-        // - https://github.com/Rob--W/dont-track-me-google/issues/6
-        // - https://github.com/Rob--W/dont-track-me-google/issues/19
-        // So let's disable it for every domain except Gmail.
-        return;
-    }
     var a = e.target;
     while (a && !a.href) {
         a = a.parentElement;
     }
     if (!a) {
         handleClickNonStandardLink(e);
+        return;
+    }
+    if (!location.hostname.startsWith('mail.')) {
+        // This hack was designed for Gmail, but broke other Google sites:
+        // - https://github.com/Rob--W/dont-track-me-google/issues/6
+        // - https://github.com/Rob--W/dont-track-me-google/issues/19
+        // So let's disable it for every domain except Gmail.
         return;
     }
     // TODO: Consider using a.baseURI instead of location in case Gmail ever
