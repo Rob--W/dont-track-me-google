@@ -4,15 +4,18 @@ document.addEventListener('click', handleClick, true);
 setupAggresiveUglyLinkPreventer();
 blockTrackingBeacons();
 
+var openInNewTab = false;
 var forceNoReferrer = true;
 if (typeof chrome == 'object' && chrome.storage) {
     (chrome.storage.sync || chrome.storage.local).get({
+        openInNewTab: false,
         forceNoReferrer: true,
         // From version 4.7 until 4.11, the preference was the literal value of
         // the referrer policy.
         referrerPolicy: 'no-referrer',
     }, function(items) {
         if (items) {
+            openInNewTab = items.openInNewTab;
             // Migration code (to be removed in the future).
             if (items.referrerPolicy === '') {
                 // User explicitly allowed referrers to be sent, respect that.
@@ -56,6 +59,9 @@ function handlePointerPress(e) {
     var realLink = getRealLinkFromGoogleUrl(a);
     if (realLink) {
         a.href = realLink;
+    }
+    if (openInNewTab) {
+        a.target = "_blank";
     }
     a.referrerPolicy = getReferrerPolicy();
 }
