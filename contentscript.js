@@ -94,10 +94,10 @@ function handleClick(e) {
     }
     // TODO: Consider using a.baseURI instead of location in case Gmail ever
     // starts using <base href>?
-    if (a.origin === location.origin && a.pathname === location.pathname) {
-        // Same URL except for query string and/or reference fragment.
+    if (a.origin === location.origin) {
+        // Same-origin link.
         // E.g. an in-page navigation at Google Docs (#...)
-        // or an attachment at Gmail (?ui=2&...)
+        // or an attachment at Gmail (https://mail.google.com/mail/u/0?ui=2&...)
         return;
     }
     if (a.protocol !== 'http:' &&
