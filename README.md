@@ -1,8 +1,8 @@
 ![](screenshot.png)
 
-- Firefox: https://addons.mozilla.org/en-US/firefox/addon/dont-track-me-google1/ (Firefox on Android is also supported).
+- Firefox: https://addons.mozilla.org/addon/dont-track-me-google1/ (Firefox on Android is also supported).
 - Chrome: https://chrome.google.com/webstore/detail/dont-track-me-google/gdbofhhdmcladcmmfjolgndfkpobecpg
-- Opera: https://addons.opera.com/en/extensions/details/dont-track-me-google/
+- Opera: https://addons.opera.com/extensions/details/dont-track-me-google/
 
 At the Google Search engine, search results are converted to an ugly link upon click. This link enables tracking for Google.
 
