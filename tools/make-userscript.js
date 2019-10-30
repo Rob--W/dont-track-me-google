@@ -16,7 +16,7 @@ let metadata = [
     ['version', manifest.version],
     ['icon', 'https://raw.githubusercontent.com/Rob--W/dont-track-me-google/master/icon48.png'],
     ['run-at', content_script0.run_at.replace('_', '-')],
-    ...content_script0.matches.map(pattern => ['match', pattern]),
+    ...content_script0.matches.map(pattern => ['include', pattern]),
 ].map(([key, value]) => {
     return `// @${key} ${value}`;
 }).join('\n');
