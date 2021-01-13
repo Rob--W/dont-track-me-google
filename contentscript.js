@@ -154,10 +154,12 @@ function getRealLinkFromGoogleUrl(a) {
     }
     if ((a.hostname === location.hostname || a.hostname === 'www.google.com') &&
         (a.pathname === '/url' || a.pathname === '/local_url' ||
-         a.pathname === '/searchurl/rr.html')) {
+         a.pathname === '/searchurl/rr.html' ||
+         a.pathname === '/linkredirect')) {
         // Google Maps / Dito (/local_url?q=<url>)
         // Mobile (/url?q=<url>)
-        var url = /[?&](?:q|url)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
+        // Google Meet's chat (/linkredirect?authuser=0&dest=<url>)
+        var url = /[?&](?:q|url|dest)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
         }
