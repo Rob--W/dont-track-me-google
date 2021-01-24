@@ -56,6 +56,12 @@ function handlePointerPress(e) {
     var realLink = getRealLinkFromGoogleUrl(a);
     if (realLink) {
         a.href = realLink;
+        // Sometimes, two fixups are needed, on old mobile user agents:
+        // /url?q=https://googleweblight.com/fp?u=... -> ...
+        realLink = getRealLinkFromGoogleUrl(a);
+        if (realLink) {
+            a.href = realLink;
+        }
     }
     a.referrerPolicy = getReferrerPolicy();
 }
@@ -152,6 +158,7 @@ function getRealLinkFromGoogleUrl(a) {
     if (a.protocol !== 'https:' && a.protocol !== 'http:') {
         return;
     }
+    var url;
     if ((a.hostname === location.hostname || a.hostname === 'www.google.com') &&
         (a.pathname === '/url' || a.pathname === '/local_url' ||
          a.pathname === '/searchurl/rr.html' ||
@@ -159,7 +166,7 @@ function getRealLinkFromGoogleUrl(a) {
         // Google Maps / Dito (/local_url?q=<url>)
         // Mobile (/url?q=<url>)
         // Google Meet's chat (/linkredirect?authuser=0&dest=<url>)
-        var url = /[?&](?:q|url|dest)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
+        url = /[?&](?:q|url|dest)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
         }
@@ -171,6 +178,13 @@ function getRealLinkFromGoogleUrl(a) {
         // Redirect pages for Android intents (/searchurl/rr.html#...&url=...)
         // rr.html only supports http(s). So restrict to http(s) only.
         url = /[#&]url=(https?[:%][^&]+)/.exec(a.hash);
+        if (url) {
+            return decodeURIComponent(url[1]);
+        }
+    }
+    // Google Search with old mobile UA (e.g. Firefox 41).
+    if (a.hostname === 'googleweblight.com' && a.pathname === '/fp') {
+        url = /[?&]u=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
         }
