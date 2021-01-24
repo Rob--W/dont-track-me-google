@@ -5,12 +5,14 @@ setupAggresiveUglyLinkPreventer();
 blockTrackingBeacons();
 
 var forceNoReferrer = true;
+var noping = true;
 if (typeof chrome == 'object' && chrome.storage) {
     (chrome.storage.sync || chrome.storage.local).get({
         forceNoReferrer: true,
         // From version 4.7 until 4.11, the preference was the literal value of
         // the referrer policy.
         referrerPolicy: 'no-referrer',
+        noping: true,
     }, function(items) {
         if (items) {
             // Migration code (to be removed in the future).
@@ -19,11 +21,15 @@ if (typeof chrome == 'object' && chrome.storage) {
                 items.forceNoReferrer = false;
             }
             forceNoReferrer = items.forceNoReferrer;
+            noping = items.noping;
         }
     });
     chrome.storage.onChanged.addListener(function(changes) {
         if (changes.forceNoReferrer) {
             forceNoReferrer = changes.forceNoReferrer.newValue;
+        }
+        if (changes.noping) {
+            noping = changes.noping.newValue;
         }
     });
 }
@@ -52,6 +58,9 @@ function handlePointerPress(e) {
         // prevent the inline listener from running... So we have to cancel
         // event propagation just in case.
         e.stopImmediatePropagation();
+    }
+    if (noping) {
+        a.removeAttribute('ping');
     }
     var realLink = getRealLinkFromGoogleUrl(a);
     if (realLink) {
@@ -337,13 +346,29 @@ function blockTrackingBeacons() {
             /^(?:(?:https?:\/\/[^\/]+)?\/)?gen_204(?:[?#]|$)/);
 
         navProto.sendBeacon = function(url, data) {
-            if (isTrackingUrl(url)) {
+            if (isTrackingUrl(url) && isNoPingEnabled()) {
                 // Lie that the data has been transmitted to avoid fallbacks.
                 return true;
             }
             return sendBeacon(this, arguments);
         };
+
+        var CustomEvent = window.CustomEvent;
+        var currentScript = document.currentScript;
+        var dispatchEvent = currentScript.dispatchEvent.bind(currentScript);
+        var getScriptAttribute = currentScript.getAttribute.bind(currentScript);
+        function isNoPingEnabled() {
+            try {
+                dispatchEvent(new CustomEvent('dtmg-get-noping'));
+                return getScriptAttribute('noping') !== 'false';
+            } catch (e) {
+                return true;
+            }
+        }
     } + ')();';
+    s.addEventListener('dtmg-get-noping', function(event) {
+        s.setAttribute('noping', noping);
+    });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
 }
