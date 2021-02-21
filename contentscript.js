@@ -352,6 +352,7 @@ function setupAggresiveUglyLinkPreventer() {
     } else {
         // Scripts enabled (not blocked by CSP), run other inline scripts.
         blockTrackingBeacons();
+        overwriteWindowOpen();
     }
 }
 
@@ -406,6 +407,43 @@ function blockTrackingBeacons() {
     s.addEventListener('dtmg-get-noping', function(event) {
         s.setAttribute('noping', noping);
     });
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+}
+
+// Google sometimes uses window.open() to open ugly links.
+// https://github.com/Rob--W/dont-track-me-google/issues/41
+function overwriteWindowOpen() {
+    var s = document.createElement('script');
+    if (getScriptCspNonce()) {
+        s.setAttribute('nonce', scriptCspNonce);
+    }
+    s.textContent = '(' + function() {
+        var open = window.open;
+        window.open = function(url, windowName, windowFeatures) {
+            try {
+                if (url) {
+                    var a = document.createElement('a');
+                    // Triggers getRealLinkFromGoogleUrl via the href setter in
+                    // setupAggresiveUglyLinkPreventer.
+                    a.href = url;
+                    url = a.href;
+                    if (a.referrerPolicy) {
+                        if (windowFeatures) {
+                            windowFeatures += ',';
+                        } else {
+                            windowFeatures = '';
+                        }
+                        windowFeatures += 'noreferrer';
+                    }
+                }
+            } catch (e) {
+                // Not expected to happen, but don't break callers if it does.
+            }
+            var win = open(url, windowName, windowFeatures);
+            return win;
+        };
+    } + ')();';
     (document.head || document.documentElement).appendChild(s);
     s.remove();
 }
