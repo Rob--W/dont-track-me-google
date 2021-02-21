@@ -73,6 +73,17 @@ function handlePointerPress(e) {
         }
     }
     a.referrerPolicy = getReferrerPolicy();
+
+    if (e.eventPhase === Event.CAPTURING_PHASE) {
+        // Our event listener runs first, to sanitize the link.
+        // But the page may have an event handler that modifies the link again.
+        // We can append a listener to the bubbling phase of the (current)
+        // event dispatch to fix the link up again, provided that the page did
+        // not call stopPropagation() or stopImmediatePropagation().
+        var eventOptions = { capture: false, once: true };
+        a.addEventListener(e.type, handlePointerPress, eventOptions);
+        document.addEventListener(e.type, handlePointerPress, eventOptions);
+    }
 }
 
 // This is specifically designed for catching clicks in Gmail.
