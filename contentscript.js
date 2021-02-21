@@ -1,8 +1,9 @@
 document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
+var scriptCspNonce;
+var needsCspNonce = typeof browser !== 'undefined'; // Firefox.
 setupAggresiveUglyLinkPreventer();
-blockTrackingBeacons();
 
 var forceNoReferrer = true;
 var noping = true;
@@ -252,6 +253,15 @@ function setupAggresiveUglyLinkPreventer() {
     // This content script runs as document_start, so we can have some assurance
     // that the methods in the page are reliable.
     var s = document.createElement('script');
+    if (getScriptCspNonce()) {
+        s.setAttribute('nonce', scriptCspNonce);
+    } else if (document.readyState !== 'complete' && needsCspNonce) {
+        // In Firefox, a page's CSP is enforced for content scripts, so we need
+        // to wait for the document to be loaded (we may be at document_start)
+        // and find a fitting CSP nonce.
+        findScriptCspNonce(setupAggresiveUglyLinkPreventer);
+        return;
+    }
     s.textContent = '(' + function(getRealLinkFromGoogleUrl) {
         var proto = HTMLAnchorElement.prototype;
         // The link target can be changed in many ways, but let's only consider
@@ -329,6 +339,19 @@ function setupAggresiveUglyLinkPreventer() {
     s.remove();
     if (!s.dataset.jsEnabled) {
         cleanLinksWhenJsIsDisabled();
+        if (!needsCspNonce) {
+            needsCspNonce = true;
+            // This is not Firefox, but the script was blocked. Perhaps a CSP
+            // nonce is needed anyway.
+            findScriptCspNonce(function() {
+                if (scriptCspNonce) {
+                    setupAggresiveUglyLinkPreventer();
+                }
+            });
+        }
+    } else {
+        // Scripts enabled (not blocked by CSP), run other inline scripts.
+        blockTrackingBeacons();
     }
 }
 
@@ -341,6 +364,9 @@ function setupAggresiveUglyLinkPreventer() {
 // discern such link-tracking events from others, I will block all of them.
 function blockTrackingBeacons() {
     var s = document.createElement('script');
+    if (getScriptCspNonce()) {
+        s.setAttribute('nonce', scriptCspNonce);
+    }
     s.textContent = '(' + function() {
         var navProto = window.Navigator.prototype;
         var navProtoSendBeacon = navProto.sendBeacon;
@@ -390,12 +416,21 @@ function cleanLinksWhenJsIsDisabled() {
     // rewrite the link even earlier because otherwise the ugly URL is shown in
     // the tooltip upon hover.
 
+    if (document.readyState == 'complete') {
+        cleanAllLinks();
+        return;
+    }
+
     // When JS is disabled, the links won't change after the document finishes
     // loading. Until the DOM has finished loading, use the mouseover event to
     // beautify links (the DOMContentLoaded may be delayed on slow networks).
     document.addEventListener('mouseover', handleMouseOver);
     document.addEventListener('DOMContentLoaded', function() {
         document.removeEventListener('mouseover', handleMouseOver);
+        cleanAllLinks();
+    }, {once: true});
+
+    function cleanAllLinks() {
         var as = document.querySelectorAll('a[href]');
         for (var i = 0; i < as.length; ++i) {
             var href = getRealLinkFromGoogleUrl(as[i]);
@@ -403,7 +438,7 @@ function cleanLinksWhenJsIsDisabled() {
                 as[i].href = href;
             }
         }
-    }, {once: true});
+    }
 
     function handleMouseOver(e) {
         var a = e.target;
@@ -412,6 +447,31 @@ function cleanLinksWhenJsIsDisabled() {
             a.href = href;
         }
     }
+}
+
+function getScriptCspNonce() {
+    var scripts = document.querySelectorAll('script[nonce]');
+    for (var i = 0; i < scripts.length && !scriptCspNonce; ++i) {
+        scriptCspNonce = scripts[i].nonce;
+    }
+    return scriptCspNonce;
+}
+
+function findScriptCspNonce(callback) {
+    var timer;
+    function checkDOM() {
+        if (getScriptCspNonce() || document.readyState === 'complete') {
+            document.removeEventListener('DOMContentLoaded', checkDOM, true);
+            if (timer) {
+                clearTimeout(timer);
+            }
+            callback();
+            return;
+        }
+        timer = setTimeout(checkDOM, 50);
+    }
+    document.addEventListener('DOMContentLoaded', checkDOM, true);
+    checkDOM();
 }
 
 function newURL(href) {
