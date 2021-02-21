@@ -441,8 +441,60 @@ function overwriteWindowOpen() {
                 // Not expected to happen, but don't break callers if it does.
             }
             var win = open(url, windowName, windowFeatures);
+            try {
+                if (!url) {
+                    // In Google Docs, sometimes a blank document is opened,
+                    // and document.write is used to insert a redirector.
+                    // https://github.com/Rob--W/dont-track-me-google/issues/41
+                    var doc = win.document;
+                    var docWrite = win.Function.prototype.call.bind(doc.write);
+                    doc.write = function(markup) {
+                        try {
+                            markup = fixupDocMarkup(markup);
+                        } catch (e) {
+                            // Not expected, but don't break callers otherwise.
+                        }
+                        return docWrite(this, markup);
+                    };
+                }
+            } catch (e) {
+                // Not expected to happen, but don't break callers if it does.
+            }
             return win;
         };
+        function fixupDocMarkup(html) {
+            html = html || '';
+            html += '';
+            return html.replace(
+                /<meta [^>]*http-equiv=(["']?)refresh\1[^>]*>/i,
+                function(m) {
+                    var doc = new DOMParser().parseFromString(m, 'text/html');
+                    var meta = doc.querySelector('meta[http-equiv=refresh]');
+                    return meta && fixupMetaUrl(meta) || m;
+                });
+        }
+        function fixupMetaUrl(meta) {
+            var parts = /^(\d*;\s*url=)(.+)$/i.exec(meta.content);
+            if (!parts) {
+                return;
+            }
+            var metaPrefix = parts[1];
+            var url = parts[2];
+            var a = document.createElement('a');
+            // Triggers getRealLinkFromGoogleUrl via the href setter in
+            // setupAggresiveUglyLinkPreventer.
+            a.href = url;
+            url = a.href;
+            meta.content = metaPrefix + url;
+
+            var html = meta.outerHTML;
+            if (a.referrerPolicy) {
+                // Google appears to already append the no-referrer
+                // meta tag, but add one just in case it doesn't.
+                html = '<meta name="referrer" content="no-referrer">' + html;
+            }
+            return html;
+        }
     } + ')();';
     (document.head || document.documentElement).appendChild(s);
     s.remove();
