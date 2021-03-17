@@ -399,7 +399,10 @@ function overwriteWindowOpen() {
                     // setupAggresiveUglyLinkPreventer.
                     a.href = url;
                     url = a.href;
-                    if (a.referrerPolicy) {
+                    // The origin check exists to avoid adding "noreferrer" to
+                    // same-origin popups. That implies noopener and causes
+                    // https://github.com/Rob--W/dont-track-me-google/issues/43
+                    if (a.referrerPolicy && a.origin !== location.origin) {
                         if (windowFeatures) {
                             windowFeatures += ',';
                         } else {
