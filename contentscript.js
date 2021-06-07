@@ -402,7 +402,13 @@ function overwriteWindowOpen() {
                     // The origin check exists to avoid adding "noreferrer" to
                     // same-origin popups. That implies noopener and causes
                     // https://github.com/Rob--W/dont-track-me-google/issues/43
-                    if (a.referrerPolicy && a.origin !== location.origin) {
+                    // And allow any Google domain to support auth popups:
+                    // https://github.com/Rob--W/dont-track-me-google/issues/45
+                    // And don't bother editing the list if it already contains
+                    // "opener" (it would be disabled by "noreferrer").
+                    if (a.referrerPolicy && a.origin !== location.origin &&
+                        !/\.google\.([a-z]+)$/.test(a.hostname) &&
+                        !/\bopener|noreferrer/.test(windowFeatures)) {
                         if (windowFeatures) {
                             windowFeatures += ',';
                         } else {
