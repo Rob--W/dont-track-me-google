@@ -3,6 +3,7 @@
 - Firefox: https://addons.mozilla.org/addon/dont-track-me-google1/ (Firefox on Android is also supported).
 - Chrome: https://chrome.google.com/webstore/detail/dont-track-me-google/gdbofhhdmcladcmmfjolgndfkpobecpg
 - Opera: https://addons.opera.com/extensions/details/dont-track-me-google/
+- User script: https://greasyfork.org/en/scripts/428243-don-t-track-me-google
 
 At the Google Search engine, search results are converted to an ugly link upon click. This link enables tracking for Google.
 
@@ -22,5 +23,6 @@ This speeds up loading search results and allows you to right-click or tap to co
 - july 2016 - Published Firefox addon. Rewrote the program from scratch to recognize more URLs and to use modern techniques for a better performance.
 - september 2016 - Restored referrer hiding functionality with minimal impact using
   [referrer policies](https://blog.mozilla.org/security/2015/01/21/meta-referrer/).
+- june 2021 - Published user script on Greasyfork.
 
 Brought to you by Rob Wu (https://robwu.nl).
