@@ -392,8 +392,9 @@ function overwriteWindowOpen() {
     s.textContent = '(' + function() {
         var open = window.open;
         window.open = function(url, windowName, windowFeatures) {
+            var isBlankUrl = !url || url === "about:blank";
             try {
-                if (url) {
+                if (!isBlankUrl) {
                     var a = document.createElement('a');
                     // Triggers getRealLinkFromGoogleUrl via the href setter in
                     // setupAggresiveUglyLinkPreventer.
@@ -422,7 +423,7 @@ function overwriteWindowOpen() {
             }
             var win = open(url, windowName, windowFeatures);
             try {
-                if (!url) {
+                if (isBlankUrl && win) {
                     // In Google Docs, sometimes a blank document is opened,
                     // and document.write is used to insert a redirector.
                     // https://github.com/Rob--W/dont-track-me-google/issues/41
