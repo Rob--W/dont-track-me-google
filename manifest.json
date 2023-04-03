@@ -1,7 +1,7 @@
 {
     "name": "Don't track me Google",
     "description": "Removes the annoying link-conversion at Google Search/maps/...",
-    "version": "4.27",
+    "version": "4.27.1",
     "manifest_version": 3,
     "content_scripts": [
         {
@@ -213,8 +213,7 @@
         "96": "icon96.png"
     },
     "options_ui": {
-        "page": "options.html",
-        "chrome_style": true
+        "page": "options.html"
     },
     "permissions": [
         "storage"
