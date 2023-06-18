@@ -3,6 +3,7 @@ document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
 var scriptCspNonce;
 var needsCspNonce = typeof browser !== 'undefined'; // Firefox.
+var preferenceObservers = [];
 setupAggresiveUglyLinkPreventer();
 
 var forceNoReferrer = true;
@@ -23,6 +24,7 @@ if (typeof chrome == 'object' && chrome.storage) {
             }
             forceNoReferrer = items.forceNoReferrer;
             noping = items.noping;
+            callPreferenceObservers();
         }
     });
     chrome.storage.onChanged.addListener(function(changes) {
@@ -32,6 +34,20 @@ if (typeof chrome == 'object' && chrome.storage) {
         if (changes.noping) {
             noping = changes.noping.newValue;
         }
+        callPreferenceObservers();
+    });
+}
+
+function callImmediatelyAndOnPreferenceUpdate(callback) {
+    callback();
+    preferenceObservers.push(callback);
+}
+function callPreferenceObservers() {
+    // This method is usually once, and occasionally more than once if the user
+    // changes a preference. For simplicity we don't check whether a pref was
+    // changed before calling a callback - these are cheap anyway.
+    preferenceObservers.forEach(function(callback) {
+        callback();
     });
 }
 
@@ -300,17 +316,20 @@ function setupAggresiveUglyLinkPreventer() {
             return aClick(this, arguments);
         });
 
-        var CustomEvent = window.CustomEvent;
+        var rpProp = Object.getOwnPropertyDescriptor(proto, 'referrerPolicy');
+        var rpSet = Function.prototype.call.bind(rpProp.set);
+
         var currentScript = document.currentScript;
-        var dispatchEvent = currentScript.dispatchEvent.bind(currentScript);
-        var getScriptAttribute = currentScript.getAttribute.bind(currentScript);
+        var getReferrerPolicy = Object.getOwnPropertyDescriptor(
+            HTMLScriptElement.prototype,
+            'referrerPolicy'
+        ).get.bind(currentScript);
 
         function updateReferrerPolicy(a) {
             try {
-                dispatchEvent(new CustomEvent('dtmg-get-referrer-policy'));
-                var referrerPolicy = getScriptAttribute('referrerPolicy');
-                if (typeof referrerPolicy === 'string' && referrerPolicy) {
-                    setAttribute(a, 'referrerPolicy', referrerPolicy);
+                var referrerPolicy = getReferrerPolicy();
+                if (referrerPolicy) {
+                    rpSet(a, referrerPolicy);
                 }
             } catch (e) {
                 // Not expected to happen, but don't break callers if it happens
@@ -319,8 +338,9 @@ function setupAggresiveUglyLinkPreventer() {
         }
         currentScript.dataset.jsEnabled = 1;
     } + ')(' + getRealLinkFromGoogleUrl + ');';
-    s.addEventListener('dtmg-get-referrer-policy', function(event) {
-        s.setAttribute('referrerPolicy', getReferrerPolicy());
+    callImmediatelyAndOnPreferenceUpdate(function forceNoReferrerChanged() {
+        // Send the desired referrerPolicy value to the injected script.
+        s.referrerPolicy = getReferrerPolicy();
     });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
@@ -378,21 +398,23 @@ function blockTrackingBeacons() {
             return sendBeacon(this, arguments);
         };
 
-        var CustomEvent = window.CustomEvent;
         var currentScript = document.currentScript;
-        var dispatchEvent = currentScript.dispatchEvent.bind(currentScript);
-        var getScriptAttribute = currentScript.getAttribute.bind(currentScript);
+        var getElementId = Object.getOwnPropertyDescriptor(
+            Element.prototype,
+            'id'
+        ).get.bind(currentScript);
         function isNoPingEnabled() {
             try {
-                dispatchEvent(new CustomEvent('dtmg-get-noping'));
-                return getScriptAttribute('noping') !== 'false';
+                return getElementId() !== '_dtmg_do_not_touch_ping';
             } catch (e) {
                 return true;
             }
         }
     } + ')();';
-    s.addEventListener('dtmg-get-noping', function(event) {
-        s.setAttribute('noping', noping);
+    callImmediatelyAndOnPreferenceUpdate(function nopingChanged() {
+        // Send the noping value to the injected script. The "id" property is
+        // mirrored and can have an arbitrary (string) value, so we use that:
+        s.id = noping ? '' : '_dtmg_do_not_touch_ping';
     });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
