@@ -260,8 +260,23 @@ function setupAggresiveUglyLinkPreventer() {
                 updateReferrerPolicy(this);
             },
         });
+        function replaceAMethod(methodName, methodFunc) {
+            // Overwrite the methods without triggering setters, because that
+            // may inadvertently overwrite the prototype, as observed in
+            // https://github.com/Rob--W/dont-track-me-google/issues/52#issuecomment-1596207655
+            Object.defineProperty(proto, methodName, {
+                configurable: true,
+                // All methods that we are overriding are not part of
+                // HTMLAnchorElement.prototype, but inherit.
+                enumerable: false,
+                writable: true,
+                value: methodFunc,
+            });
+        }
+
+        // proto inherits HTMLElement.prototype.setAttribute:
         var setAttribute = Function.prototype.call.bind(proto.setAttribute);
-        proto.setAttribute = function(name, value) {
+        replaceAMethod('setAttribute', function(name, value) {
             // Attribute names are not case-sensitive, but weird capitalizations
             // are unlikely, so only check all-lowercase and all-uppercase.
             if (name === 'href' || name === 'HREF') {
@@ -269,19 +284,21 @@ function setupAggresiveUglyLinkPreventer() {
             } else {
                 setAttribute(this, name, value);
             }
-        };
+        });
 
+        // proto inherits EventTarget.prototype.dispatchEvent:
         var aDispatchEvent = Function.prototype.apply.bind(proto.dispatchEvent);
-        proto.dispatchEvent = function() {
+        replaceAMethod('dispatchEvent', function() {
             updateReferrerPolicy(this);
             return aDispatchEvent(this, arguments);
-        };
+        });
 
+        // proto inherits HTMLElement.prototype.click:
         var aClick = Function.prototype.apply.bind(proto.click);
-        proto.click = function() {
+        replaceAMethod('click', function() {
             updateReferrerPolicy(this);
             return aClick(this, arguments);
-        };
+        });
 
         var CustomEvent = window.CustomEvent;
         var currentScript = document.currentScript;
