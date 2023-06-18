@@ -55,6 +55,17 @@ function getReferrerPolicy() {
     return forceNoReferrer ? 'origin' : '';
 }
 
+function updateReferrerPolicy(a) {
+    if (a.referrerPolicy === 'no-referrer') {
+        // "no-referrer" is more privacy-friendly than "origin".
+        return;
+    }
+    var referrerPolicy = getReferrerPolicy();
+    if (referrerPolicy) {
+        a.referrerPolicy = referrerPolicy;
+    }
+}
+
 function handlePointerPress(e) {
     var a = e.target;
     while (a && !a.href) {
@@ -89,7 +100,7 @@ function handlePointerPress(e) {
             a.href = realLink;
         }
     }
-    a.referrerPolicy = getReferrerPolicy();
+    updateReferrerPolicy(a);
 
     if (e.eventPhase === Event.CAPTURING_PHASE) {
         // Our event listener runs first, to sanitize the link.
@@ -153,7 +164,7 @@ function handleClick(e) {
     }
     if (a.target === '_blank') {
         e.stopPropagation();
-        a.referrerPolicy = getReferrerPolicy();
+        updateReferrerPolicy(a);
     }
 }
 
@@ -317,6 +328,7 @@ function setupAggresiveUglyLinkPreventer() {
         });
 
         var rpProp = Object.getOwnPropertyDescriptor(proto, 'referrerPolicy');
+        var rpGet = Function.prototype.call.bind(rpProp.get);
         var rpSet = Function.prototype.call.bind(rpProp.set);
 
         var currentScript = document.currentScript;
@@ -327,6 +339,10 @@ function setupAggresiveUglyLinkPreventer() {
 
         function updateReferrerPolicy(a) {
             try {
+                if (rpGet(a) === 'no-referrer') {
+                    // "no-referrer" is more privacy-friendly than "origin".
+                    return;
+                }
                 var referrerPolicy = getReferrerPolicy();
                 if (referrerPolicy) {
                     rpSet(a, referrerPolicy);
