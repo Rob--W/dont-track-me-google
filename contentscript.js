@@ -301,7 +301,7 @@ function setupAggresiveUglyLinkPreventer() {
             });
         }
 
-        // proto inherits HTMLElement.prototype.setAttribute:
+        // proto inherits Element.prototype.setAttribute:
         var setAttribute = Function.prototype.call.bind(proto.setAttribute);
         replaceAMethod('setAttribute', function(name, value) {
             // Attribute names are not case-sensitive, but weird capitalizations
