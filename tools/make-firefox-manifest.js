@@ -10,6 +10,7 @@ manifest.browser_specific_settings = {
     gecko: {
         id: 'dont-track-me-google@robwu.nl',
     },
+    gecko_android: {},
 };
 
 // While the extension is compatible with manifest V2 and V3, we force MV2
