@@ -34,6 +34,14 @@ ${metadata}
 
 `);
 
+// TODO: Rewrite so that main_world_script.js is injected as an inline script,
+// because the current logic is designed for Firefox and Chrome, and does not
+// account for a user script environment. Regardless of the implementation, the
+// user script will always be worse than the actual extensions:
+// - If run with '@grant none', the script will run in the main world but may
+//   interfere with the page's scripts.
+// - If run without '@grant none', we need to inject an inline script element,
+//   but that could be blocked by the page's CSP.
 let inStreams = content_scripts_js.map(js => fs.createReadStream(js));
 function consumeNextInputStream() {
     let inStream = inStreams.shift();
