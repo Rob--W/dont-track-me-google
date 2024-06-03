@@ -2,26 +2,37 @@
 // objects in the page's context. It should run in the MAIN world.
 // It may run in the ISOLATED world if the MAIN world is not supported.
 
+// This content script runs as document_start, so we can have some assurance
+// that the methods in the page are reliable.
+
 // Keep the following functions in sync with contentscript.js:
 // - getRealLinkFromGoogleUrl
 // - getReferrerPolicy (dtmgLink.referrerPolicy)
 // - isNoPingEnabled (dtmgLink.noping)
 
-// The main functions of this file are:
-// - setupAggresiveUglyLinkPreventer
-// - blockTrackingBeacons
-// - overwriteWindowOpen
-//
-// TODO: refactor use of:
-// - cleanLinksWhenJsIsDisabled
-// - findScriptCspNonce
-// - getScriptCspNonce
+// The indentation of this file is somewhat strange:
+// - getRealLinkFromGoogleUrl is not indented, for easier diffing against
+//   its copy in contentscript.js
+// - The comments before setupAggresiveUglyLinkPreventer, blockTrackingBeacons
+//   and overwriteWindowOpen have not been indented yet because of blame.
 
-/* globals cleanLinksWhenJsIsDisabled */
+;(function dtmg_main_closure() {
+    // This element is inserted by contentscript.js
+    var dtmgLink = document.querySelector('link#dont_track_me_google_link');
 
-var scriptCspNonce;
-var needsCspNonce = typeof browser !== 'undefined'; // Firefox.
-setupAggresiveUglyLinkPreventer();
+    if (injectInMainWorldIfIsolatedWorldInFirefox()) {
+        // world:"MAIN" was not supported by Firefox: https://bugzil.la/1736575
+        // ... and we ended up being executed in the ISOLATED world.
+        // Note: in Chrome we set minimum_chrome_version:111, which implies
+        // availability of world:MAIN, as introduced in:
+        // https://chromium.googlesource.com/chromium/src/+/8f07eaff87947a2e93214de2695de8052119180b
+        return;
+    }
+
+    // These are the main functions:
+    setupAggresiveUglyLinkPreventer();
+    blockTrackingBeacons();
+    overwriteWindowOpen();
 
 /**
  * @param {URL|HTMLHyperlinkElementUtils} a
@@ -72,20 +83,7 @@ function getRealLinkFromGoogleUrl(a) {
  * there is no event-driven way to fix the URL. The DOMAttrModified event could
  * be used, but the event is deprecated, so not a viable long-term solution.
  */
-function setupAggresiveUglyLinkPreventer() {
-    // This content script runs as document_start, so we can have some assurance
-    // that the methods in the page are reliable.
-    var s = document.createElement('script');
-    if (getScriptCspNonce()) {
-        s.setAttribute('nonce', scriptCspNonce);
-    } else if (document.readyState !== 'complete' && needsCspNonce) {
-        // In Firefox, a page's CSP is enforced for content scripts, so we need
-        // to wait for the document to be loaded (we may be at document_start)
-        // and find a fitting CSP nonce.
-        findScriptCspNonce(setupAggresiveUglyLinkPreventer);
-        return;
-    }
-    s.textContent = '(' + function(getRealLinkFromGoogleUrl) {
+    function setupAggresiveUglyLinkPreventer() {
         var proto = HTMLAnchorElement.prototype;
         // The link target can be changed in many ways, but let's only consider
         // the .href attribute since it's probably the only used setter.
@@ -157,7 +155,6 @@ function setupAggresiveUglyLinkPreventer() {
         var rpGet = Function.prototype.call.bind(rpProp.get);
         var rpSet = Function.prototype.call.bind(rpProp.set);
 
-        var dtmgLink = document.querySelector('link#dont_track_me_google_link');
         function getReferrerPolicy() {
             // This mirrors getReferrerPolicy() from contentscript.js; by
             // default, forceNoReferrer = true, which translates to 'origin'.
@@ -179,28 +176,7 @@ function setupAggresiveUglyLinkPreventer() {
                 // anyway.
             }
         }
-        document.currentScript.dataset.jsEnabled = 1;
-    } + ')(' + getRealLinkFromGoogleUrl + ');';
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
-    if (!s.dataset.jsEnabled) {
-        cleanLinksWhenJsIsDisabled();
-        if (!needsCspNonce) {
-            needsCspNonce = true;
-            // This is not Firefox, but the script was blocked. Perhaps a CSP
-            // nonce is needed anyway.
-            findScriptCspNonce(function() {
-                if (scriptCspNonce) {
-                    setupAggresiveUglyLinkPreventer();
-                }
-            });
-        }
-    } else {
-        // Scripts enabled (not blocked by CSP), run other inline scripts.
-        blockTrackingBeacons();
-        overwriteWindowOpen();
     }
-}
 
 // Block sendBeacon requests with destination /gen_204, because Google
 // asynchronously sends beacon requests in response to mouse events on links:
@@ -209,12 +185,7 @@ function setupAggresiveUglyLinkPreventer() {
 // This implementation also blocks other forms of tracking via gen_204 as a side
 // effect. That is not fully intentional, but given the lack of obvious ways to
 // discern such link-tracking events from others, I will block all of them.
-function blockTrackingBeacons() {
-    var s = document.createElement('script');
-    if (getScriptCspNonce()) {
-        s.setAttribute('nonce', scriptCspNonce);
-    }
-    s.textContent = '(' + function() {
+    function blockTrackingBeacons() {
         var navProto = window.Navigator.prototype;
         var navProtoSendBeacon = navProto.sendBeacon;
         if (!navProtoSendBeacon) {
@@ -237,7 +208,6 @@ function blockTrackingBeacons() {
             return sendBeacon(this, arguments);
         };
 
-        var dtmgLink = document.querySelector('link#dont_track_me_google_link');
         function isNoPingEnabled() {
             try {
                 // Mirrors the noping variable from contentscript.js
@@ -246,20 +216,12 @@ function blockTrackingBeacons() {
                 return true;
             }
         }
-    } + ')();';
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
-}
+    }
 
 // Google sometimes uses window.open() to open ugly links.
 // https://github.com/Rob--W/dont-track-me-google/issues/18
 // https://github.com/Rob--W/dont-track-me-google/issues/41
-function overwriteWindowOpen() {
-    var s = document.createElement('script');
-    if (getScriptCspNonce()) {
-        s.setAttribute('nonce', scriptCspNonce);
-    }
-    s.textContent = '(' + function() {
+    function overwriteWindowOpen() {
         var open = window.open;
         window.open = function(url, windowName, windowFeatures) {
             var isBlankUrl = !url || url === "about:blank";
@@ -346,32 +308,46 @@ function overwriteWindowOpen() {
             }
             return html;
         }
-    } + ')();';
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
-}
-
-function getScriptCspNonce() {
-    var scripts = document.querySelectorAll('script[nonce]');
-    for (var i = 0; i < scripts.length && !scriptCspNonce; ++i) {
-        scriptCspNonce = scripts[i].nonce;
     }
-    return scriptCspNonce;
-}
 
-function findScriptCspNonce(callback) {
-    var timer;
-    function checkDOM() {
-        if (getScriptCspNonce() || document.readyState === 'complete') {
-            document.removeEventListener('DOMContentLoaded', checkDOM, true);
-            if (timer) {
-                clearTimeout(timer);
-            }
-            callback();
-            return;
+    function injectInMainWorldIfIsolatedWorldInFirefox() {
+        /* globals globalThis */
+        if (globalThis === window) {
+            // Content script world check relies on https://bugzil.la/1208775
+            // (globalThis is the content script's Sandbox global in Firefox).
+            // In Chrome, globalThis === window is always true, and in every
+            // regular browser (including Firefox), being in the main world
+            // implies globalThis === window.
+            return false;
         }
-        timer = setTimeout(checkDOM, 50);
+        // Extra sanity checks in case the above logic was messed up.
+        let browser = globalThis.browser;
+        if (
+            typeof browser !== 'object' ||
+            !browser.runtime ||
+            typeof browser.runtime.getURL !== 'function'
+        ) {
+            return false;
+        }
+        var mainWorldScript = browser.runtime.getURL('main_world_script.js');
+        if (!mainWorldScript.startsWith('moz-extension:')) {
+            return false; // Unexpectedly not Firefox.
+        }
+
+        // MV2 extensions in Firefox can inject moz-extension:-scripts without
+        // web_accessible_resources. MV3 cannot: https://bugzil.la/1783078
+        // MV3 should use world:main when available: https://bugzil.la/1736575
+        var s = document.createElement('script');
+        s.src = mainWorldScript;
+
+        // Use closed shadow DOM to avoid leaking extension UUID to the page.
+        var shadowHost = document.createElement('span');
+        shadowHost.attachShadow({ mode: 'closed' }).append(s);
+        s.onload = s.onerror = function() {
+            shadowHost.remove();
+            s.onload = s.onerror = null;
+        };
+        (document.body || document.documentElement).append(shadowHost);
+        return true;
     }
-    document.addEventListener('DOMContentLoaded', checkDOM, true);
-    checkDOM();
-}
+})();
