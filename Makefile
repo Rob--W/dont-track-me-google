@@ -5,6 +5,7 @@ build:
 	zip -r dont-track-me-google.zip \
 	    manifest.json \
 	    contentscript.js \
+		main_world_script.js \
 	    options.js \
 	    options.html \
 	    icon*.png
