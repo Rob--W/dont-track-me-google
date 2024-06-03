@@ -33,6 +33,9 @@
     setupAggresiveUglyLinkPreventer();
     blockTrackingBeacons();
     overwriteWindowOpen();
+    if (dtmgLink) {
+        dtmgLink.remove();
+    }
 
 /**
  * @param {URL|HTMLHyperlinkElementUtils} a
