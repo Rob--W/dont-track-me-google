@@ -212,14 +212,6 @@ function setupAggresiveUglyLinkPreventer() {
         // Scripts enabled (not blocked by CSP), run other inline scripts.
         blockTrackingBeacons();
         overwriteWindowOpen();
-
-        if (location.hostname === 'docs.google.com') {
-            // Google Docs have simple non-JS interfaces where the ugly links
-            // are hard-coded in the HTML. Remove them (#51).
-            // https://docs.google.com/document/d/.../mobilebasic
-            // https://docs.google.com/spreadsheets/d/.../htmlview
-            cleanLinksWhenJsIsDisabled();
-        }
     }
 }
 

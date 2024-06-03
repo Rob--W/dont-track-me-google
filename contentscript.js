@@ -5,9 +5,6 @@
 // - getReferrerPolicy
 // - getRealLinkFromGoogleUrl
 
-// cleanLinksWhenJsIsDisabled is currently called by main_world_script.js
-/* exported cleanLinksWhenJsIsDisabled */
-
 document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
@@ -33,6 +30,7 @@ if (typeof chrome == 'object' && chrome.storage) {
             noping = items.noping;
             callPreferenceObservers();
         }
+        potentiallyAsyncInit();
     });
     chrome.storage.onChanged.addListener(function(changes) {
         if (changes.forceNoReferrer) {
@@ -52,6 +50,18 @@ function callPreferenceObservers() {
     preferenceObservers.forEach(function(callback) {
         callback();
     });
+} else {
+    potentiallyAsyncInit();
+}
+
+function potentiallyAsyncInit() {
+    if (location.hostname === 'docs.google.com') {
+        // Google Docs have simple non-JS interfaces where the ugly links
+        // are hard-coded in the HTML. Remove them (#51).
+        // https://docs.google.com/document/d/.../mobilebasic
+        // https://docs.google.com/spreadsheets/d/.../htmlview
+        cleanLinksWhenJsIsDisabled();
+    }
 }
 
 function getReferrerPolicy() {
@@ -241,6 +251,7 @@ function getSanitizedIntentUrl(intentUrl) {
         intentUrl.substring(indexEnd);
 }
 
+var hadListenedForCleanup;
 function cleanLinksWhenJsIsDisabled() {
     // When JavaScript is disabled, Google sets the "href" attribute's value to
     // an ugly URL. Although the link is rewritten on click, we still need to
@@ -251,6 +262,12 @@ function cleanLinksWhenJsIsDisabled() {
         cleanAllLinks();
         return;
     }
+    if (hadListenedForCleanup) {
+        // cleanLinksWhenJsIsDisabled can be called by potentiallyAsyncInit and
+        // setupAggresiveUglyLinkPreventer (in main_world_script.js).
+        return;
+    }
+    hadListenedForCleanup = true;
 
     // When JS is disabled, the links won't change after the document finishes
     // loading. Until the DOM has finished loading, use the mouseover event to
