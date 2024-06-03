@@ -3,8 +3,9 @@
 // It may run in the ISOLATED world if the MAIN world is not supported.
 
 // Keep the following functions in sync with contentscript.js:
-// - getReferrerPolicy
 // - getRealLinkFromGoogleUrl
+// - getReferrerPolicy (dtmgLink.referrerPolicy)
+// - isNoPingEnabled (dtmgLink.noping)
 
 // The main functions of this file are:
 // - setupAggresiveUglyLinkPreventer
@@ -15,23 +16,12 @@
 // - cleanLinksWhenJsIsDisabled
 // - findScriptCspNonce
 // - getScriptCspNonce
-// - preferenceObservers
 
-/* globals cleanLinksWhenJsIsDisabled, preferenceObservers */
-/* globals forceNoReferrer, noping */
+/* globals cleanLinksWhenJsIsDisabled */
 
 var scriptCspNonce;
 var needsCspNonce = typeof browser !== 'undefined'; // Firefox.
 setupAggresiveUglyLinkPreventer();
-
-function callImmediatelyAndOnPreferenceUpdate(callback) {
-    callback();
-    preferenceObservers.push(callback);
-}
-
-function getReferrerPolicy() {
-    return forceNoReferrer ? 'origin' : '';
-}
 
 /**
  * @param {URL|HTMLHyperlinkElementUtils} a
@@ -167,11 +157,12 @@ function setupAggresiveUglyLinkPreventer() {
         var rpGet = Function.prototype.call.bind(rpProp.get);
         var rpSet = Function.prototype.call.bind(rpProp.set);
 
-        var currentScript = document.currentScript;
-        var getReferrerPolicy = Object.getOwnPropertyDescriptor(
-            HTMLScriptElement.prototype,
-            'referrerPolicy'
-        ).get.bind(currentScript);
+        var dtmgLink = document.querySelector('link#dont_track_me_google_link');
+        function getReferrerPolicy() {
+            // This mirrors getReferrerPolicy() from contentscript.js; by
+            // default, forceNoReferrer = true, which translates to 'origin'.
+            return dtmgLink ? dtmgLink.referrerPolicy : 'origin';
+        }
 
         function updateReferrerPolicy(a) {
             try {
@@ -188,12 +179,8 @@ function setupAggresiveUglyLinkPreventer() {
                 // anyway.
             }
         }
-        currentScript.dataset.jsEnabled = 1;
+        document.currentScript.dataset.jsEnabled = 1;
     } + ')(' + getRealLinkFromGoogleUrl + ');';
-    callImmediatelyAndOnPreferenceUpdate(function forceNoReferrerChanged() {
-        // Send the desired referrerPolicy value to the injected script.
-        s.referrerPolicy = getReferrerPolicy();
-    });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
     if (!s.dataset.jsEnabled) {
@@ -250,24 +237,16 @@ function blockTrackingBeacons() {
             return sendBeacon(this, arguments);
         };
 
-        var currentScript = document.currentScript;
-        var getElementId = Object.getOwnPropertyDescriptor(
-            Element.prototype,
-            'id'
-        ).get.bind(currentScript);
+        var dtmgLink = document.querySelector('link#dont_track_me_google_link');
         function isNoPingEnabled() {
             try {
-                return getElementId() !== '_dtmg_do_not_touch_ping';
+                // Mirrors the noping variable from contentscript.js
+                return dtmgLink ? dtmgLink.disabled : true;
             } catch (e) {
                 return true;
             }
         }
     } + ')();';
-    callImmediatelyAndOnPreferenceUpdate(function nopingChanged() {
-        // Send the noping value to the injected script. The "id" property is
-        // mirrored and can have an arbitrary (string) value, so we use that:
-        s.id = noping ? '' : '_dtmg_do_not_touch_ping';
-    });
     (document.head || document.documentElement).appendChild(s);
     s.remove();
 }

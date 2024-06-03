@@ -5,13 +5,21 @@
 // - getReferrerPolicy
 // - getRealLinkFromGoogleUrl
 
+var dtmgLink = document.createElement('link');
+dtmgLink.id = 'dont_track_me_google_link';
 document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
-var preferenceObservers = [];
 
 var forceNoReferrer = true;
 var noping = true;
+function applyPreferences() {
+    dtmgLink.referrerPolicy = getReferrerPolicy();
+    dtmgLink.disabled = noping;
+}
+// Ensure that the default prefs are synchronized to the dtmgLink element:
+applyPreferences();
+(document.head || document.documentElement).appendChild(dtmgLink);
 if (typeof chrome == 'object' && chrome.storage) {
     (chrome.storage.sync || chrome.storage.local).get({
         forceNoReferrer: true,
@@ -28,7 +36,7 @@ if (typeof chrome == 'object' && chrome.storage) {
             }
             forceNoReferrer = items.forceNoReferrer;
             noping = items.noping;
-            callPreferenceObservers();
+            applyPreferences();
         }
         potentiallyAsyncInit();
     });
@@ -39,16 +47,7 @@ if (typeof chrome == 'object' && chrome.storage) {
         if (changes.noping) {
             noping = changes.noping.newValue;
         }
-        callPreferenceObservers();
-    });
-}
-
-function callPreferenceObservers() {
-    // This method is usually once, and occasionally more than once if the user
-    // changes a preference. For simplicity we don't check whether a pref was
-    // changed before calling a callback - these are cheap anyway.
-    preferenceObservers.forEach(function(callback) {
-        callback();
+        applyPreferences();
     });
 } else {
     potentiallyAsyncInit();
