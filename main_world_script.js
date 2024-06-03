@@ -314,7 +314,7 @@ function getRealLinkFromGoogleUrl(a) {
     }
 
     function injectInMainWorldIfIsolatedWorldInFirefox() {
-        /* globals globalThis */
+        /* globals globalThis, console */
         if (globalThis === window) {
             // Content script world check relies on https://bugzil.la/1208775
             // (globalThis is the content script's Sandbox global in Firefox).
@@ -346,9 +346,20 @@ function getRealLinkFromGoogleUrl(a) {
         // Use closed shadow DOM to avoid leaking extension UUID to the page.
         var shadowHost = document.createElement('span');
         shadowHost.attachShadow({ mode: 'closed' }).append(s);
-        s.onload = s.onerror = function() {
-            shadowHost.remove();
+        s.onload = s.onerror = function(e) {
             s.onload = s.onerror = null;
+            if (e.type === 'error') {
+                // Forgotten to delete MV2 code after MV3 migration?
+                // Could also happen during development in Firefox, because
+                // manifest.json defaults to manifest_version 3, and
+                // tools/make-firefox-manifest.js sets MV3 to MV2.
+                // Note: this execution could be blocked by the page's CSP.
+                var s2 = document.createElement('script');
+                s2.textContent = '(' + dtmg_main_closure + ')()';
+                s.replaceWith(s2);
+                console.warn('[DTMG] Falling back to inline script injection');
+            }
+            shadowHost.remove();
         };
         (document.body || document.documentElement).append(shadowHost);
         return true;
