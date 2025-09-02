@@ -46,13 +46,14 @@ function getRealLinkFromGoogleUrl(a) {
         return;
     }
     var url;
-    if ((a.hostname === location.hostname || a.hostname === 'www.google.com') &&
+    if ((a.hostname === location.hostname || a.hostname === 'www.google.com' || a.hostname === 'www.youtube.com') &&
         (a.pathname === '/url' || a.pathname === '/local_url' ||
          a.pathname === '/searchurl/rr.html' ||
-         a.pathname === '/linkredirect')) {
+         a.pathname === '/linkredirect' || a.pathname === '/redirect')) {
         // Google Maps / Dito (/local_url?q=<url>)
         // Mobile (/url?q=<url>)
         // Google Meet's chat (/linkredirect?authuser=0&dest=<url>)
+        // YouTube (/redirect?q=<url>)
         url = /[?&](?:q|url|dest)=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
