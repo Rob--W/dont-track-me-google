@@ -26,3 +26,4 @@ clean:
 	rm -rf fxtmpdir
 	rm -f dont-track-me-google.zip
 	rm -f dont-track-me-google-firefox.zip
+	rm -f dont-track-me-google.user.js
