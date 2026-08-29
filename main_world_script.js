@@ -16,7 +16,7 @@
 // - The comments before setupAggresiveUglyLinkPreventer, blockTrackingBeacons
 //   and overwriteWindowOpen have not been indented yet because of blame.
 
-;(function dtmg_main_closure() {
+(function dtmg_main_closure() {
     // This element is inserted by contentscript.js
     var dtmgLink = document.querySelector('link#dont_track_me_google_link');
 
@@ -201,7 +201,7 @@ function getRealLinkFromGoogleUrl(a) {
         //   /gen_204
         //   https://www.google.com/gen_204
         var isTrackingUrl = RegExp.prototype.test.bind(
-            /^(?:(?:https?:\/\/[^\/]+)?\/)?gen_204(?:[?#]|$)/);
+            /^(?:(?:https?:\/\/[^/]+)?\/)?gen_204(?:[?#]|$)/);
 
         navProto.sendBeacon = function(url, data) {
             if (isTrackingUrl(url) && isNoPingEnabled()) {
@@ -314,7 +314,6 @@ function getRealLinkFromGoogleUrl(a) {
     }
 
     function injectInMainWorldIfIsolatedWorldInFirefox() {
-        /* globals globalThis, console */
         if (globalThis === window) {
             // Content script world check relies on https://bugzil.la/1208775
             // (globalThis is the content script's Sandbox global in Firefox).
