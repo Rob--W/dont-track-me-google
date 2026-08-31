@@ -48,4 +48,15 @@ manifest.browser_specific_settings = {
 // issues have reduced, we can consider using MV3 unconditionally.
 manifest.manifest_version = 2;
 
+// "scripts" and "service_worker" can co-exist in background, but only since
+// Firefox 121. Not in ESR 115, so we need to drop it.
+manifest.background.scripts = [manifest.background.service_worker];
+delete manifest.background.service_worker;
+// MV2 defaults to persistent, make it an event page.
+manifest.background.persistent = false;
+
+// host_permissions is MV3-only, move to permissions:
+manifest.permissions.push(...manifest.host_permissions);
+delete manifest.host_permissions;
+
 console.log(JSON.stringify(manifest, null, 4));

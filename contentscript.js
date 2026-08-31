@@ -4,6 +4,8 @@
 // Keep the following functions in sync with main_world_script.js:
 // - getReferrerPolicy
 // - getRealLinkFromGoogleUrl
+// - getGoogleGotoUrl
+// - resolveGoogleGotoUrl (function body differs, keep logic equivalent)
 
 var dtmgLink = document.createElement('link');
 dtmgLink.id = 'dont_track_me_google_link';
@@ -11,8 +13,12 @@ document.addEventListener('mousedown', handlePointerPress, true);
 document.addEventListener('touchstart', handlePointerPress, true);
 document.addEventListener('click', handleClick, true);
 
+var gotoMap = new Map();
+var pendingGotoLookupMap = new Map();
+
 var forceNoReferrer = true;
 var noping = true;
+var noGotoFixupViaNetwork = false;
 function applyPreferences() {
     dtmgLink.referrerPolicy = getReferrerPolicy();
     dtmgLink.disabled = noping;
@@ -27,6 +33,7 @@ if (typeof chrome == 'object' && chrome.storage) {
         // the referrer policy.
         referrerPolicy: 'no-referrer',
         noping: true,
+        noGotoFixupViaNetwork: false,
     }, function(items) {
         if (items) {
             // Migration code (to be removed in the future).
@@ -36,6 +43,7 @@ if (typeof chrome == 'object' && chrome.storage) {
             }
             forceNoReferrer = items.forceNoReferrer;
             noping = items.noping;
+            noGotoFixupViaNetwork = items.noGotoFixupViaNetwork;
             applyPreferences();
         }
         potentiallyAsyncInit();
@@ -47,9 +55,13 @@ if (typeof chrome == 'object' && chrome.storage) {
         if (changes.noping) {
             noping = changes.noping.newValue;
         }
+        if (changes.noGotoFixupViaNetwork) {
+            noGotoFixupViaNetwork = changes.noGotoFixupViaNetwork.newValue;
+        }
         applyPreferences();
     });
 } else {
+    noGotoFixupViaNetwork = true; // Depends on extension API.
     potentiallyAsyncInit();
 }
 
@@ -114,6 +126,13 @@ function handlePointerPress(e) {
     }
     updateReferrerPolicy(a);
 
+    if (getGoogleGotoUrl(a) && !noGotoFixupViaNetwork) {
+        asyncFixupGoogleGotoUrl(a);
+        // Link fixup will be async, skip the extra handlePointerPress click
+        // logic below, since the async fixup will run after the (synchronous)
+        // event dispatch anyway.
+        return;
+    }
     if (e.eventPhase === Event.CAPTURING_PHASE) {
         // Our event listener runs first, to sanitize the link.
         // But the page may have an event handler that modifies the link again.
@@ -212,12 +231,214 @@ function getRealLinkFromGoogleUrl(a) {
             return decodeURIComponent(url[1]);
         }
     }
+    const gotoUrl = getGoogleGotoUrl(a);
+    if (gotoUrl) {
+        try {
+            url = resolveGoogleGotoUrl(a, gotoUrl);
+            if (url) {
+                return url;
+            }
+        } catch (e) {
+            // console.error("[DTMG] resolveGoogleGotoUrl failed:", e);
+        }
+    }
     // Google Search with old mobile UA (e.g. Firefox 41).
     if (a.hostname === 'googleweblight.com' && a.pathname === '/fp') {
         url = /[?&]u=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
         }
+    }
+}
+
+/**
+ * Since aug 2026, https://www.google.com/goto?url= is very common:
+ * https://github.com/Rob--W/dont-track-me-google/issues/67
+ *
+ * @param {URL|HTMLHyperlinkElementUtils} a
+ * @returns {string} "/goto?..." if link is a Google /goto URL or equivalent.
+ */
+function getGoogleGotoUrl(a) {
+    if (a.hostname !== location.hostname && a.hostname !== 'www.google.com') {
+        return;
+    }
+    if (a.pathname === '/goto') {
+        // "/goto?url=CAES..."
+        return a.pathname + a.search;
+    }
+    if (a.pathname === '/url') {
+        // "/url?...&url=CAES&..." is generated on pointer release by Google,
+        // after we fix up a /goto URL in handlePointerPress.
+        let urlGotoParam = /(?<=[?&])url=CAES[^&#]+/.exec(a.search);
+        if (urlGotoParam) {
+            return '/goto?' + urlGotoParam[0];
+        }
+    }
+}
+
+/**
+ * Resolves a /goto?url=... to the actual destination; see
+ * https://github.com/Rob--W/dont-track-me-google/issues/67 and
+ * https://github.com/Rob--W/dont-track-me-google/issues/67#issuecomment-5469760244
+ *
+ * Partially delegates to main_world_script.js for resolution.
+ *
+ * @param {URL|HTMLHyperlinkElementUtils} a
+ * @param {string} gotoUrl - value of getGoogleGotoUrl(a)
+ * @returns {String} The URL for the given /goto?url=... URL, if known.
+ */
+function resolveGoogleGotoUrl(a, gotoUrl) {
+    // Populated by lookupSeenGotoUrlTarget + triggerRequestForGotoUrlTarget:
+    let urlFound = gotoMap.get(gotoUrl);
+    if (urlFound) {
+        return urlFound;
+    }
+
+    // Try to synchronously read the URL from what's available in the page's
+    // context. This relies on main_world_script.js's resolveGoogleGotoUrl
+    // function (same name, but significantly more complex implementation).
+    if (a instanceof HTMLAnchorElement) {
+        a.dispatchEvent(
+            new CustomEvent('dtmg_sync_fixup_goto_url', { bubbles: true })
+        );
+    }
+}
+
+/**
+ * Try to fix up a /goto URL by sending a request and checking its redirect
+ * target. This only works in an extension because XHR / fetch do not support
+ * looking up redirect targets.
+ */
+async function asyncFixupGoogleGotoUrl(a) {
+    if (noGotoFixupViaNetwork) {
+        return;
+    }
+    const gotoUrl = getGoogleGotoUrl(a);
+    if (!gotoUrl) {
+        return;
+    }
+    async function finalizeLinkFixup() {
+        let realLink = await lookupSeenGotoUrlTarget(gotoUrl);
+        if (getGoogleGotoUrl(a) !== gotoUrl) {
+            // Already changed or fixed up in the meantime.
+            // Note: we compare goto-URLs because Google sometimes replaces
+            // "/goto?url=CAES..." with "/url?...&url=CAES...&...", and we
+            // still want to replace /goto-URLs in that case.
+            return true;
+        }
+        if (realLink) {
+            a.href = realLink;
+            return true;
+        }
+        return false; // Unknown, continue.
+    }
+    if (await finalizeLinkFixup()) {
+        return;
+    }
+    let lookupPromise = pendingGotoLookupMap.get(gotoUrl);
+    if (!lookupPromise) {
+        // Note: background.js has a non-blocking webRequest listener. If we
+        // get here, that implies that lookupSeenGotoUrlTarget above did not
+        // find the URL, and consulted the background script in order to draw
+        // that conclusion, which wakes it up. That ensures that its webRequest
+        // listener fires ASAP if triggered by triggerRequestForGotoUrlTarget.
+        lookupPromise = triggerRequestForGotoUrlTarget(a.hostname, gotoUrl);
+        // Try only once for any /goto URL. If there are intermittent failures
+        // for whatever reason, a page reload can fix it.
+        pendingGotoLookupMap.set(gotoUrl, lookupPromise);
+    }
+    await lookupPromise;
+
+    if (await finalizeLinkFixup()) {
+        return;
+    }
+    // If somehow the webRequest listener did not fire immediately for some
+    // reason, wait a little bit and retry.
+    await new Promise(r => setTimeout(r, 10));
+    if (await finalizeLinkFixup()) {
+        return;
+    }
+    console.warn(`[DTMG] Unable to fix up /goto-URL: ${gotoUrl}`);
+}
+
+/**
+ * Look up the redirect target got the /goto URL as seen by the extension.
+ * @param {string} gotoUrl Canonical URL starting with "/goto?url=..."
+ * @returns {string} Redirect target, if known.
+ */
+async function lookupSeenGotoUrlTarget(gotoUrl) {
+    let realLink = gotoMap.get(gotoUrl);
+    if (realLink) {
+        return realLink;
+    }
+    // Read from gotoMap in background.js, which contains recently redirect
+    // targets for recently observed requests.
+    // triggerRequestForGotoUrlTarget can trigger the request if needed.
+    realLink = await chrome.runtime.sendMessage(gotoUrl);
+    if (realLink && /^https?:/.test(realLink)) {
+        gotoMap.set(gotoUrl, realLink);
+        return realLink;
+    }
+    return undefined;
+}
+
+/**
+ * Send a request for the /goto-URL (but do not follow the redirect!).
+ * Due to limitations of fetch / XHR, it is not possible to directly look up
+ * the redirect target. We instead use a webRequest listener in the background
+ * to detect the redirect target, retrieved via lookupSeenGotoUrlTarget.
+ *
+ * Do NOT directly call this method; instead use asyncFixupGoogleGotoUrl, which
+ * takes care of avoiding this call where possible.
+ */
+async function triggerRequestForGotoUrlTarget(googleDomain, gotoUrl) {
+    if (noGotoFixupViaNetwork) {
+        return;
+    }
+
+    console.info('[DTMG] Sending fetch request to resolve /goto-URL');
+
+    const referrerPolicy = forceNoReferrer ? 'no-referrer' : 'origin';
+    if (origin === 'https://www.google.com' ||
+        location.protocol + googleDomain === origin
+    ) {
+        // Ideal: send one same-origin request and do not follow redirects.
+        try {
+            await fetch(origin + gotoUrl, {
+                redirect: 'manual',
+                referrerPolicy,
+            });
+        } catch (e) {
+            // Fire and forget; caller will try to look up the redirect target.
+        }
+        return;
+    }
+
+    // /goto URL is not same-origin; we cannot use redirect: 'manual', and
+    // instead have to send a request that would follow redirects. To avoid
+    // following redirects, lock down the iframe with CSP.
+    //
+    // And ignore googleDomain and unconditionally use www.google.com, because
+    // that is the domain known to support goto-URLs, and background.js only
+    // registers a listener for that domain by default.
+    let f = document.createElement('iframe');
+    f.style.setProperty('display', 'none', '!important');
+    try {
+        (document.body || document.documentElement).append(f);
+        const doc = f.contentDocument;
+        const m = doc.createElement('meta');
+        m.httpEquiv = 'content-security-policy';
+        // gotoUrl starts with "/goto" and has no other path component. This is
+        // validated by getGoogleGotoUrl; CSP will reject non-exact matches.
+        m.content = 'default-src;connect-src https://www.google.com/goto';
+        (doc.head || doc.documentElement).append(m);
+        await f.contentWindow.fetch('https://www.google.com' + gotoUrl, {
+            mode: 'no-cors',
+            referrerPolicy,
+        });
+    } catch (e) {
+        // Fire and forget; caller will try to look up the redirect target.
+        f.remove();
     }
 }
 

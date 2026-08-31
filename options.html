@@ -49,8 +49,19 @@ footer {
     <input type="checkbox" id="noping">
     Disable hyperlink auditing at Google (stops Google from tracking some link clicks).
 </label>
+<h2>Google /goto URLs</h2>
+<div>
+    Google hides URLs behind <code>google.com/goto?url=</code> that redirects
+    to the real URL upon request, after you click on a link for example.
+    To reveal the real URL earlier, the extension may send a request to Google
+    to retrieve the URL behind a goto URL.
+</div>
+<label>
+    <input type="checkbox" id="noGotoFixupViaNetwork">
+    Never request the real URL from Google (/goto URLs stay unreadable).
+</label>
 <footer>
-    &copy; 2011 - 2023 Rob Wu &lt;rob@robwu.nl&gt;
+    &copy; 2011 - 2026 Rob Wu &lt;rob@robwu.nl&gt;
     &bull; <a href="https://github.com/Rob--W/dont-track-me-google/">Source code on Github</a>
     &bull; <a href="https://chrome.google.com/webstore/detail/dont-track-me-google/gdbofhhdmcladcmmfjolgndfkpobecpg">Chrome Web Store listing</a>
     &bull; <a href="https://addons.mozilla.org/addon/dont-track-me-google1/">Firefox addon listing</a>

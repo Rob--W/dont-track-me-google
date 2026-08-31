@@ -15,6 +15,16 @@ For example, the search entry
 This script removes Google's link-conversion/tracking feature.
 This speeds up loading search results and allows you to right-click or tap to copy the link URL.
 
+## Google /goto URLs
+
+Since Augustus 2026, Google hides URLs behind `google.com/goto?url=...`
+([DTMG issue 67](https://github.com/Rob--W/dont-track-me-google/issues/67)).
+To reveal the real URL earlier, the extension may send a request to Google
+to retrieve the URL behind a goto URL, when you start interacting with a goto
+link in the search result. You can opt out of this feature at the options page.
+
+This feature relies on extension APIs and is not available to the user script.
+
 ## History
 
 - december 2011 - First release, as a [user script](https://web.archive.org/web/20140424090201/https://userscripts.org/scripts/show/121923).
@@ -24,5 +34,6 @@ This speeds up loading search results and allows you to right-click or tap to co
 - september 2016 - Restored referrer hiding functionality with minimal impact using
   [referrer policies](https://blog.mozilla.org/security/2015/01/21/meta-referrer/).
 - june 2021 - Published user script on Greasyfork.
+- aug 2026 - Support /goto URLs ([#67](https://github.com/Rob--W/dont-track-me-google/issues/67)), in extension only (not user script).
 
 Brought to you by Rob Wu (https://robwu.nl).

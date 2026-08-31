@@ -7,6 +7,8 @@
 
 // Keep the following functions in sync with contentscript.js:
 // - getRealLinkFromGoogleUrl
+// - getGoogleGotoUrl
+// - resolveGoogleGotoUrl (function body differs, keep logic equivalent)
 // - getReferrerPolicy (dtmgLink.referrerPolicy)
 // - isNoPingEnabled (dtmgLink.noping)
 
@@ -69,11 +71,233 @@ function getRealLinkFromGoogleUrl(a) {
             return decodeURIComponent(url[1]);
         }
     }
+    const gotoUrl = getGoogleGotoUrl(a);
+    if (gotoUrl) {
+        try {
+            url = resolveGoogleGotoUrl(a, gotoUrl);
+            if (url) {
+                return url;
+            }
+        } catch (e) {
+            // console.error("[DTMG] resolveGoogleGotoUrl failed:", e);
+        }
+    }
     // Google Search with old mobile UA (e.g. Firefox 41).
     if (a.hostname === 'googleweblight.com' && a.pathname === '/fp') {
         url = /[?&]u=((?:https?|ftp)[%:][^&]+)/.exec(a.search);
         if (url) {
             return decodeURIComponent(url[1]);
+        }
+    }
+}
+
+/**
+ * Since aug 2026, https://www.google.com/goto?url= is very common:
+ * https://github.com/Rob--W/dont-track-me-google/issues/67
+ *
+ * @param {URL|HTMLHyperlinkElementUtils} a
+ * @returns {string} "/goto?..." if link is a Google /goto URL or equivalent.
+ */
+function getGoogleGotoUrl(a) {
+    if (a.hostname !== location.hostname && a.hostname !== 'www.google.com') {
+        return;
+    }
+    if (a.pathname === '/goto') {
+        // "/goto?url=CAES..."
+        return a.pathname + a.search;
+    }
+    if (a.pathname === '/url') {
+        // "/url?...&url=CAES&..." is generated on pointer release by Google,
+        // after we fix up a /goto URL in handlePointerPress.
+        let urlGotoParam = /(?<=[?&])url=CAES[^&#]+/.exec(a.search);
+        if (urlGotoParam) {
+            return '/goto?' + urlGotoParam[0];
+        }
+    }
+}
+
+/**
+ * Resolves a /goto?url=... to the actual destination; see
+ * https://github.com/Rob--W/dont-track-me-google/issues/67 and
+ * https://github.com/Rob--W/dont-track-me-google/issues/67#issuecomment-5469760244
+ *
+ * May unexpectedly throw due to direct interactions with the main world.
+ *
+ * @param {URL|HTMLHyperlinkElementUtils} a
+ * @param {string} gotoUrl - value of getGoogleGotoUrl(a)
+ * @returns {String} The URL for the given /goto?url=... URL, if known.
+ */
+function resolveGoogleGotoUrl(a, gotoUrl) {
+    // The format of a /goto?url= is explained at
+    // https://github.com/Rob--W/dont-track-me-google/issues/67#issuecomment-4826792358
+    // https://github.com/Rob--W/dont-track-me-google/issues/67#issuecomment-4826901453
+    // ... and is basically an encrypted version of the actual URL. Assuming
+    // properly implemented crypto, the only way to resolve the URL is:
+    //
+    // - Identify a side channel from which the URL can be recovered. The
+    //   downside is that this is typically fragile and breaks easily.
+    //
+    // - Or actually send the request and see what the redirect target is.
+    //   An obvious downside is that it involves a network request to Google.
+    //
+    //   To get the results synchronously, sync XHR would be needed, but that
+    //   automatically follows redirects, and HEAD /goto does not respond with
+    //   the actual URL (200 instead of 302). Besides, sync XHR freezes the
+    //   page until a response would be received. So sync XHR is infeasible.
+    //
+    //   fetch() with manual redirect control can be used, but that does not
+    //   support a synchronous mode, so it either requires eagerly resolving
+    //   URLs, or some disruptive interruption of the user's interaction.
+
+    // W_jd is the backing store for some mapper  in Google's code. The page
+    // initializes it to a plain object mapping random keys to arrays; later on
+    // the W_jd global is wrapped by a Proxy with a custom setter trap.
+    var W_jd = window.W_jd;
+    if (typeof W_jd != 'object' || W_jd === null) {
+        // Does not exist. Perhaps renamed?
+        return;
+    }
+    function isRealUrlImpl(val) {
+        if (typeof val != 'string' || !val.startsWith('http')) {
+            return false;
+        }
+        let { protocol, hostname, pathname } = new URL(val); // May throw.
+        if (protocol !== 'https:' && protocol !== 'http:') {
+            return false;
+        }
+        if (hostname === location.hostname || hostname === 'www.google.com') {
+            // When the target is Google, there is a non-zero chance of the
+            // identified URL to be incorrect.
+            return (
+                // /goto to /goto is unlikely to be interesting.
+                pathname !== '/goto' &&
+                // Googling Google, or some base URL / origin.
+                pathname !== '/' &&
+                // Search back to search, likely not interesting.
+                pathname !== '/search'
+            );
+        }
+        // TODO: Maybe hostname.endsWith('gstatic.com')?
+        // e.g. encrypted-tbn0.gstatic.com
+
+        // Assume real URL unless given a reason otherwise.
+        return true;
+    }
+    function isRealUrl(val) {
+        try {
+            return isRealUrlImpl(val);
+        } catch (e) {
+            // Parsing URL can fail. Can also fail if page tampers.
+            return false;
+        }
+    }
+    var urlFound;
+    function doFindUrl(arr) {
+        // Search result (SERP): Array(33)
+        // arr[17] = goto
+        // arr[32][2][6] = goto
+        // arr[32][3][0] = real
+        // arr[32][7][0] = goto
+        //
+        // Image result at SERP: Array(33)
+        // arr[17] = goto
+        // arr[32][2][5][1] = real (between image size/URL)
+        // arr[32][2][6] = goto
+        // arr[32][7][0] = goto
+        //
+        // News result at SERP: Array(33) --- no real URL
+        // arr[17] = goto
+        // arr[32][2][6] = goto
+        // arr[32][7][0] = goto
+        //
+        // Short video at SERP: Array(33)
+        // arr[17] = goto
+        // arr[32][2][6] = goto
+        // arr[32][7][0] = goto
+        // arr[32][11][7] = real
+        //
+        // "Latest posts" (socials) at SERP: Array(33) --- no real URL
+        // arr[17] = goto
+        // arr[32][2][6] = goto
+        // arr[32][7][0] = goto
+        //
+        // Image result (1/2): Array(10) --- no goto URL
+        // arr[1] = data-docid
+        // arr[9].2003[2] = real
+        // Image result (2/2): Array(15) --- no goto URL
+        // arr[1].Cr = Array(10), also separately in map, see above.
+        // arr[1][1] = data-docid
+        // arr[1].Cr[9].2003[2] = real
+        // arr[7] = data-docid
+        // Image result <a> element:
+        // - a < div < div < div[data-docid][data-lpage]
+        // - data-docid cross-references with W_jd data.
+        // - data-lpage contains the actual URL as well, without needing W_jd.
+        // (this special case is handled below, outside this function)
+        //
+        // News result: Not in W_jd
+        //
+        // Video result: Same as Short video at SERP
+        // Short video result: Same as Short video at SERP
+        if (arr[17] === gotoUrl) {
+            // SERP
+            let real = arr[32]?.[3]?.[0];
+            if (isRealUrl(real)) {
+                urlFound = real;
+                return;
+            }
+            // Image result at SERP
+            real = arr[32]?.[2]?.[5]?.[1];
+            if (isRealUrl(real)) {
+                urlFound = real;
+                return;
+            }
+            // Short video at SERP, videos, short videos
+            real = arr[32]?.[2]?.[5]?.[1];
+            if (isRealUrl(real)) {
+                urlFound = real;
+                return;
+            }
+        }
+    }
+    function tryFindUrl(arr) {
+        try {
+            doFindUrl(arr);
+        } catch (e) {
+            // console.error("[DTMG] tryFindUrl failed:", e);
+        }
+        return !!urlFound;
+    }
+    for (let v of Object.values(W_jd)) {
+        if (!Array.isArray(v)) {
+            continue;
+        }
+        if (tryFindUrl(v)) {
+            return urlFound;
+        }
+        // Past initialization, the value is no longer available as a raw
+        // value, but stored as some class member, which itself is stored
+        // as the value of a Symbol on an empty array.
+        // 2026-08-29 example: actual array is stored in: [][Symbol()].Cr
+        // 2026-08-30 example: actual array is stored in: [][Symbol()].Ar
+        for (let sym of Object.getOwnPropertySymbols(v)) {
+            let v2 = v[sym];
+            if (typeof v2 != 'object' || v2 === null || Array.isArray(v2)) {
+                continue;
+            }
+            // The property name is randomized, so we cannot rely on the name.
+            // Instead, we enumerate property values instead.
+            for (let v3 of Object.values(v2)) {
+                if (Array.isArray(v3) && tryFindUrl(v3)) {
+                    return urlFound;
+                }
+            }
+        }
+    }
+    if (a.tagName === 'A' || a.tagName === 'a') {
+        let real = a.closest('[data-lpage]')?.dataset.lpage;
+        if (isRealUrl(real)) {
+            return real;
         }
     }
 }
@@ -179,6 +403,15 @@ function getRealLinkFromGoogleUrl(a) {
                 // anyway.
             }
         }
+
+        document.addEventListener('dtmg_sync_fixup_goto_url', function(event) {
+            const a = event.target;
+            if (a.tagName === 'A' || a.tagName === 'a') {
+                // Trigger above setter, which calls getRealLinkFromGoogleUrl
+                // that ultimately calls resolveGoogleGotoUrl for /goto URLs.
+                a.href += '';
+            }
+        });
     }
 
 // Block sendBeacon requests with destination /gen_204, because Google
