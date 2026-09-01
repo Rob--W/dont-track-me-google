@@ -253,7 +253,7 @@ function resolveGoogleGotoUrl(a, gotoUrl) {
                 return;
             }
             // Short video at SERP, videos, short videos
-            real = arr[32]?.[2]?.[5]?.[1];
+            real = arr[32]?.[11]?.[7];
             if (isRealUrl(real)) {
                 urlFound = real;
                 return;
