@@ -48,6 +48,9 @@ manifest.browser_specific_settings = {
 // issues have reduced, we can consider using MV3 unconditionally.
 manifest.manifest_version = 2;
 
+// NOTE: If we ever drop MV3 -> MV2 conversion, also drop the content.fetch
+// work-around in contentscript.js
+
 // "scripts" and "service_worker" can co-exist in background, but only since
 // Firefox 121. Not in ESR 115, so we need to drop it.
 manifest.background.scripts = [manifest.background.service_worker];

@@ -15,6 +15,10 @@ document.addEventListener('click', handleClick, true);
 
 var gotoMap = new Map();
 var pendingGotoLookupMap = new Map();
+var lastAnchorHover = null, lastAnchorHoverTimer = 0;
+// Long enough to likely be an intentional user interaction (hover) on a link,
+// not too short to be too late at fixing the link when the user clicks it.
+var MS_BEFORE_ANCHOR_HOVER_RESOLVES_GOTO = 333;
 
 var forceNoReferrer = true;
 var noping = true;
@@ -22,6 +26,11 @@ var noGotoFixupViaNetwork = false;
 function applyPreferences() {
     dtmgLink.referrerPolicy = getReferrerPolicy();
     dtmgLink.disabled = noping;
+    if (!noGotoFixupViaNetwork) {
+        document.addEventListener('mouseover', handlePointerOver, true);
+    } else {
+        document.removeEventListener('mouseover', handlePointerOver, true);
+    }
 }
 // Ensure that the default prefs are synchronized to the dtmgLink element:
 applyPreferences();
@@ -143,6 +152,53 @@ function handlePointerPress(e) {
         a.addEventListener(e.type, handlePointerPress, eventOptions);
         document.addEventListener(e.type, handlePointerPress, eventOptions);
     }
+}
+
+// The fixup of /goto-URLs may require async lookups, so the usual press/click
+// events may be too late. This handler detects when the user is hovering over
+// a link and tries to fix up /goto URLs if needed.
+function handlePointerOver(e) {
+    const a = e.target.closest('a[href]');
+    if (a === lastAnchorHover) {
+        return;
+    }
+    lastAnchorHover = a;
+    if (lastAnchorHoverTimer) {
+        clearTimeout(lastAnchorHoverTimer);
+        lastAnchorHoverTimer = 0;
+    }
+    if (!a) {
+        // Very common, not an anchor.
+        return;
+    }
+    if (!getGoogleGotoUrl(a)) {
+        // Not a goto-URL; if it is another URL that getRealLinkFromGoogleUrl
+        // recognizes, it can synchronously be fixed later, so don't bother
+        // fixing it now.
+        // If it later somehow turns into a goto-URL anyway, the user can move
+        // the pointer off the anchor and then back to trigger the logic again.
+        return;
+    }
+    lastAnchorHoverTimer = setTimeout(() => {
+        lastAnchorHoverTimer = 0;
+        if (lastAnchorHover !== a || !a.isConnected) {
+            return;
+        }
+        let gotoUrl = getGoogleGotoUrl(a);
+        if (!gotoUrl) {
+            // URL changed in the meantime.
+            return;
+        }
+        // Note: this may peek into the page and be relatively expensive when
+        // it tries to resolve the URL. But far less expensive than sending a
+        // network request, so we still do it.
+        let realUrl = resolveGoogleGotoUrl(a, gotoUrl);
+        if (realUrl) {
+            a.href = realUrl;
+            return;
+        }
+        asyncFixupGoogleGotoUrl(a);
+    }, MS_BEFORE_ANCHOR_HOVER_RESOLVES_GOTO);
 }
 
 // This is specifically designed for catching clicks in Gmail.
@@ -397,6 +453,16 @@ async function triggerRequestForGotoUrlTarget(googleDomain, gotoUrl) {
     }
 
     console.info('[DTMG] Sending fetch request to resolve /goto-URL');
+
+    let fetch = globalThis.fetch;
+    if (globalThis !== window) {
+        // Firefox MV2 content script has a privileged fetch. We want the
+        // unprivileged fetch() from the page, like MV3.
+        let contentFetch = globalThis.content?.fetch;
+        if (typeof contentFetch == 'function') {
+            fetch = contentFetch;
+        }
+    }
 
     const referrerPolicy = forceNoReferrer ? 'no-referrer' : 'origin';
     if (origin === 'https://www.google.com' ||
