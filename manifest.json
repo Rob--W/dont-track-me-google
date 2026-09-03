@@ -205,7 +205,8 @@
                 "*://*.google.co.zm/*",
                 "*://*.google.co.zw/*",
                 "*://*.google.cat/*",
-                "*://*.google.ng/*"
+                "*://*.google.ng/*",
+                "*://*.youtube.com/*"
             ]
         },
         {
@@ -409,7 +410,8 @@
                 "*://*.google.co.zm/*",
                 "*://*.google.co.zw/*",
                 "*://*.google.cat/*",
-                "*://*.google.ng/*"
+                "*://*.google.ng/*",
+                "*://*.youtube.com/*"
             ]
         }
     ],
